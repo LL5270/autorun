@@ -1,6 +1,7 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
+
 local display_p1_hitboxes = true
-local display_p1_hurtboxes = false
+local display_p1_hurtboxes = true
 local display_p1_pushboxes = false
 local display_p1_throwboxes = false
 local display_p1_throwhurtboxes = false
@@ -10,8 +11,9 @@ local display_p1_properties = false
 local display_p1_position = true
 local display_p1_clashbox = false
 local hide_p1 = false
+
 local display_p2_hitboxes = true
-local display_p2_hurtboxes = false
+local display_p2_hurtboxes = true
 local display_p2_pushboxes = false
 local display_p2_throwboxes = false
 local display_p2_throwhurtboxes = false
@@ -22,6 +24,12 @@ local display_p2_position = true
 local display_p2_clashbox = false
 local hide_p2 = false
 local display_options_menu = true
+
+local p1_hitbox_opacity = 40
+local p1_hurtbox_opacity = 5
+local p2_hitbox_opacity = 40
+local p2_hurtbox_opacity = 5
+
 local changed
 local gBattle
 local isUnpaused = true
@@ -37,10 +45,11 @@ local function setup_hook(type_name, method_name, pre_func, post_func)
 end
 
 -- Hide drawn objects when game is paused
-setup_hook("app.PauseManager", "requestPauseStart", nil,function(retval)
+setup_hook("app.PauseManager", "requestPauseStart", nil, function(retval)
     isUnpaused = false
     return retval
 end)
+
 setup_hook("app.PauseManager", "requestPauseEnd", nil, function(retval)
     isUnpaused = true
     return retval
@@ -75,6 +84,14 @@ function bitand(a, b)
     return result
 end
 
+local applyOpacity = function ( alphaInt, colorWithoutAlpha )
+	if alphaInt < 0 then alphaInt = 0 end
+	if alphaInt > 100 then alphaInt = 100 end
+
+	local alpha = math.floor((alphaInt / 100) * 255)
+    return alpha * 0x1000000 + colorWithoutAlpha
+end
+
 local draw_p1_boxes = function ( work, actParam )
     local col = actParam.Collision
     for j, rect in reversePairs(col.Infos._items) do
@@ -103,7 +120,7 @@ local draw_p1_boxes = function ( work, actParam )
 					-- TypeFlag > 0 indicates a regular hitbox
 					if rect.TypeFlag > 0 and display_p1_hitboxes then 
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF0040C0)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4D0040C0)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p1_hitbox_opacity, 0x0040C0))
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -217,11 +234,11 @@ local draw_p1_boxes = function ( work, actParam )
 						-- Armor (Type: 1) & Parry (Type: 2) Boxes
 						if rect.Type == 2 or rect.Type == 1 then			
 							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0080)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x40FF0080)
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p1_hurtbox_opacity, 0xFF0080))
 						-- All other hurtboxes
 						else
 							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FF00)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4000FF00)
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p1_hurtbox_opacity, 0x00FF00))
 						end
 						-- Identify HurtboxType as text (each at a unique height)
 						local hurtInvuln = ""
@@ -313,7 +330,7 @@ local draw_p2_boxes = function ( work, actParam )
 					-- TypeFlag > 0 indicates a regular hitbox
 					if rect.TypeFlag > 0 and display_p2_hitboxes then 
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF0040C0)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4D0040C0)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p2_hitbox_opacity, 0x0040C0))
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -427,11 +444,11 @@ local draw_p2_boxes = function ( work, actParam )
 						-- Armor (Type: 1) & Parry (Type: 2) Boxes
 						if rect.Type == 2 or rect.Type == 1 then			
 							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0080)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x40FF0080)
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p2_hurtbox_opacity, 0xFF0080))
 						-- All other hurtboxes
 						else
 							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FF00)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4000FF00)
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p2_hurtbox_opacity, 0x00FF00))
 						end
 						-- Identify HurtboxType as text (each at a unique height)
 						local hurtInvuln = ""
@@ -503,6 +520,16 @@ re.on_draw_ui(function()
 			imgui.tree_pop()
 			end
 
+		if imgui.tree_node("Opacity") then
+				imgui.push_item_width(imgui.get_window_size() * 0.25)
+				changed, p1_hitbox_opacity = imgui.slider_int("P1 Hitbox", p1_hitbox_opacity, 0, 100)
+				changed, p1_hurtbox_opacity = imgui.slider_int("P1 Hurtbox", p1_hurtbox_opacity, 0, 100)
+				changed, p2_hitbox_opacity = imgui.slider_int("P2 Hitbox", p2_hitbox_opacity, 0, 100)
+				changed, p2_hurtbox_opacity = imgui.slider_int("P2 Hurtbox", p2_hurtbox_opacity, 0, 100)
+				imgui.pop_item_width()
+			imgui.tree_pop()
+			end
+
 		if imgui.tree_node("Player 1") then 
 				changed, display_p1_hitboxes = imgui.checkbox("Display Hitboxes", display_p1_hitboxes)
 				changed, display_p1_hurtboxes = imgui.checkbox("Display Hurtboxes", display_p1_hurtboxes)
@@ -542,6 +569,16 @@ re.on_frame(function()
 		local sPlayer = gBattle:get_field("Player"):get_data(nil)
 		if display_options_menu and sPlayer.prev_no_push_bit ~= 0 then
 			imgui.begin_window("Hitboxes", true, 0)
+			if imgui.tree_node("Opacity") then
+				-- imgui.push_item_width(imgui.get_window_size() * 0.35)
+				imgui.push_item_width(80)
+				changed, p1_hitbox_opacity = imgui.slider_int("P1 Hitbox", p1_hitbox_opacity, 0, 100)
+				changed, p1_hurtbox_opacity = imgui.slider_int("P1 Hurtbox", p1_hurtbox_opacity, 0, 100)
+				changed, p2_hitbox_opacity = imgui.slider_int("P2 Hitbox", p2_hitbox_opacity, 0, 100)
+				changed, p2_hurtbox_opacity = imgui.slider_int("P2 Hurtbox", p2_hurtbox_opacity, 0, 100)
+				imgui.pop_item_width()
+			imgui.tree_pop()
+			end
 			imgui.set_next_item_open(true, 0)
 			if imgui.tree_node("Options") then
 					changed, hide_p1 = imgui.checkbox("Hide P1", hide_p1)
