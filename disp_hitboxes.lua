@@ -24,6 +24,27 @@ local hide_p2 = false
 local display_options_menu = true
 local changed
 local gBattle
+local isUnpaused = true
+
+local function setup_hook(type_name, method_name, pre_func, post_func)
+    local type_def = sdk.find_type_definition(type_name)
+    if type_def then
+        local method = type_def:get_method(method_name)
+        if method then
+            sdk.hook(method, pre_func, post_func)
+        end
+    end
+end
+
+-- Hide drawn objects when game is paused
+setup_hook("app.PauseManager", "requestPauseStart", nil,function(retval)
+    isUnpaused = false
+    return retval
+end)
+setup_hook("app.PauseManager", "requestPauseEnd", nil, function(retval)
+    isUnpaused = true
+    return retval
+end)
 
 local reversePairs = function ( aTable )
 	local keys = {}
@@ -517,7 +538,7 @@ end)
 
 re.on_frame(function()
     gBattle = sdk.find_type_definition("gBattle")
-    if gBattle then
+    if gBattle and isUnpaused then
 		local sPlayer = gBattle:get_field("Player"):get_data(nil)
 		if display_options_menu and sPlayer.prev_no_push_bit ~= 0 then
 			imgui.begin_window("Hitboxes", true, 0)
