@@ -2,36 +2,43 @@
 
 local display_p1_hitboxes = true
 local display_p1_hurtboxes = true
-local display_p1_pushboxes = false
-local display_p1_throwboxes = false
-local display_p1_throwhurtboxes = false
-local display_p1_proximityboxes = false
-local display_p1_uniqueboxes = false
-local display_p1_properties = false
+local display_p1_pushboxes = true
+local display_p1_throwboxes = true
+local display_p1_throwhurtboxes = true
+local display_p1_proximityboxes = true
+local display_p1_uniqueboxes = true
+local display_p1_properties = true
 local display_p1_position = true
-local display_p1_clashbox = false
+local display_p1_clashbox = true
 local hide_p1 = false
-
-local display_p2_hitboxes = true
-local display_p2_hurtboxes = true
-local display_p2_pushboxes = false
-local display_p2_throwboxes = false
-local display_p2_throwhurtboxes = false
-local display_p2_proximityboxes = false
-local display_p2_uniqueboxes = false
-local display_p2_properties = false
-local display_p2_position = true
-local display_p2_clashbox = false
-local hide_p2 = false
-local display_options_menu = true
 
 local p1_hitbox_opacity = 40
 local p1_hurtbox_opacity = 5
+local p1_pushbox_opacity = 10
+local p1_proximitybox_opacity = 25
+local p1_position_opacity = 100
+
+local display_p2_hitboxes = true
+local display_p2_hurtboxes = true
+local display_p2_pushboxes = true
+local display_p2_throwboxes = true
+local display_p2_throwhurtboxes = true
+local display_p2_proximityboxes = true
+local display_p2_uniqueboxes = true
+local display_p2_properties = true
+local display_p2_position = true
+local display_p2_clashbox = true
+local hide_p2 = false
+
 local p2_hitbox_opacity = 40
 local p2_hurtbox_opacity = 5
+local p2_pushbox_opacity = 10
+local p2_proximitybox_opacity = 25
+local p2_position_opacity = 100
 
 local changed
 local gBattle
+local display_options_menu = true
 local isUnpaused = true
 
 local function setup_hook(type_name, method_name, pre_func, post_func)
@@ -220,13 +227,13 @@ local draw_p1_boxes = function ( work, actParam )
 					-- Any remaining boxes are drawn as proximity boxes
 					elseif display_p1_proximityboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF5b5b5b)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x405b5b5b)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p1_proximitybox_opacity, 0x5b5b5b))
 					end
 				-- If the box contains the Attr field, then it is a pushbox
 				elseif rect:get_field("Attr") ~= nil then
 					if display_p1_pushboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FFFF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4000FFFF)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p1_pushbox_opacity, 0x00FFFF))
 					end
 				-- If the rectangle has a HitNo field, the box falls under hurt boxes
 				elseif rect:get_field("HitNo") ~= nil then
@@ -430,13 +437,13 @@ local draw_p2_boxes = function ( work, actParam )
 					-- Any remaining boxes are drawn as proximity boxes
 					elseif display_p2_proximityboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF5b5b5b)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x405b5b5b)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p2_proximitybox_opacity, 0x5b5b5b))
 					end
 				-- If the box contains the Attr field, then it is a pushbox
 				elseif rect:get_field("Attr") ~= nil then
 					if display_p2_pushboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FFFF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4000FFFF)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(p2_pushbox_opacity, 0x00FFFF))
 					end
 				-- If the rectangle has a HitNo field, the box falls under hurt boxes
 				elseif rect:get_field("HitNo") ~= nil then
@@ -593,7 +600,7 @@ re.on_frame(function()
 					if not hide_p1 or not hide_p2 then
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Hitboxes")
+						imgui.text("Hitbox")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_hitboxes = imgui.checkbox("##p1_Hitboxes", display_p1_hitboxes)
@@ -605,7 +612,7 @@ re.on_frame(function()
 
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Hurtboxes")
+						imgui.text("Hurtbox")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_hurtboxes = imgui.checkbox("##p1_Hurtboxes", display_p1_hurtboxes)
@@ -617,7 +624,7 @@ re.on_frame(function()
 
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Pushboxes")
+						imgui.text("Pushbox")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_pushboxes = imgui.checkbox("##p1_Pushboxes", display_p1_pushboxes)
@@ -629,7 +636,7 @@ re.on_frame(function()
 
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Throw Boxes")
+						imgui.text("Throwbox")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_throwboxes = imgui.checkbox("##p1_Throw Boxes", display_p1_throwboxes)
@@ -641,7 +648,7 @@ re.on_frame(function()
 
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Throw Hurtboxes")
+						imgui.text("Throw Hurtbox")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_throwhurtboxes = imgui.checkbox("##p1_Throw Hurtboxes", display_p1_throwhurtboxes)
@@ -653,7 +660,7 @@ re.on_frame(function()
 						
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Proximity Boxes")
+						imgui.text("Proximity Box")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_proximityboxes = imgui.checkbox("##p1_Proximity Boxes", display_p1_proximityboxes)
@@ -665,7 +672,7 @@ re.on_frame(function()
 			
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Projectile Clash")
+						imgui.text("Proj. Clash Box")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_clashbox = imgui.checkbox("##p1_Projectile Clash", display_p1_clashbox)
@@ -677,7 +684,7 @@ re.on_frame(function()
 						
 						imgui.table_next_row()
 						imgui.table_set_column_index(0)
-						imgui.text("Unique Boxes")
+						imgui.text("Unique Box")
 						imgui.table_set_column_index(1)
 						if not hide_p1 then
 							changed, display_p1_uniqueboxes = imgui.checkbox("##p1_UniqueBoxes", display_p1_uniqueboxes)
@@ -718,54 +725,105 @@ re.on_frame(function()
 				imgui.tree_pop()
 			end
 
-			if imgui.tree_node("Opacity") then
-				local opacityCol1Width = 50
-				local opacityCol2Width = 25
-				local opacityCol3Width = 25
-				if not hide_p1 or not hide_p2 then
-					if imgui.begin_table("OpacityTable", 3) then
-						imgui.table_setup_column("", nil, opacityCol1Width)
-						if not hide_p1 then
-							imgui.table_setup_column("P1", nil, opacityCol2Width)
-						else
-							imgui.table_setup_column("", nil, opacityCol2Width)
-						end
-						if not hide_p2 then
-							imgui.table_setup_column("P2", nil, opacityCol3Width)
-						else
-							imgui.table_setup_column("", nil, opacityCol3Width)
+			if not hide_p1 or not hide_p2 then
+				if imgui.tree_node("Opacity") then
+					local opacityCol1Width = 50
+					local opacityCol2Width = 25
+					local opacityCol3Width = 25
+
+					if not hide_p1 or not hide_p2 then
+						if imgui.begin_table("OpacityTable", 3) then
+							imgui.table_setup_column("", nil, opacityCol1Width)
+							if not hide_p1 then
+								imgui.table_setup_column("P1", nil, opacityCol2Width)
+							else
+								imgui.table_setup_column("", nil, opacityCol2Width)
+							end
+							if not hide_p2 then
+								imgui.table_setup_column("P2", nil, opacityCol3Width)
+							else
+								imgui.table_setup_column("", nil, opacityCol3Width)
+							end
+
+							imgui.table_headers_row()
+
+							if display_p1_hitboxes or display_p2_hitboxes then
+								imgui.table_next_row()
+								imgui.table_set_column_index(0)
+								imgui.text("Hitbox")
+								imgui.table_set_column_index(1)
+								if not hide_p1 and display_p1_hitboxes then
+									changed, p1_hitbox_opacity = imgui.slider_int("##p1_HitboxOpacity", p1_hitbox_opacity, 0, 100)
+								end
+								imgui.table_set_column_index(2)
+								if not hide_p2 and display_p2_hitboxes then
+									changed, p2_hitbox_opacity = imgui.slider_int("##p2_HitboxOpacity", p2_hitbox_opacity, 0, 100)
+								end
+							end
+						
+
+						if display_p1_hurtboxes or display_p2_hurtboxes then
+							imgui.table_next_row()
+							imgui.table_set_column_index(0)
+							imgui.text("Hurtbox")
+							imgui.table_set_column_index(1)
+							if not hide_p1 and display_p1_hurtboxes then
+								changed, p1_hurtbox_opacity = imgui.slider_int("##p1_HurtboxOpacity", p1_hurtbox_opacity, 0, 100)
+							end
+							imgui.table_set_column_index(2)
+							if not hide_p2 and display_p2_hurtboxes then
+								changed, p2_hurtbox_opacity = imgui.slider_int("##p2_HurtboxOpacity", p2_hurtbox_opacity, 0, 100)
+							end
 						end
 
-						imgui.table_headers_row()
+						if display_p1_pushboxes or display_p2_pushboxes then
+							imgui.table_next_row()
+							imgui.table_set_column_index(0)
+							imgui.text("Pushbox")
+							imgui.table_set_column_index(1)
+							if not hide_p1 and display_p1_pushboxes then
+								changed, p1_pushbox_opacity = imgui.slider_int("##p1_PushboxOpacity", p1_pushbox_opacity, 0, 100)
+							end
+							imgui.table_set_column_index(2)
+							if not hide_p2 and display_p2_pushboxes then
+								changed, p2_pushbox_opacity = imgui.slider_int("##p2_PushboxOpacity", p2_pushbox_opacity, 0, 100)
+							end
+						end
 
-						imgui.table_next_row()
-						imgui.table_set_column_index(0)
-						imgui.text("Hitboxes")
-						imgui.table_set_column_index(1)
-						if not hide_p1 and display_p1_hitboxes then
-							changed, p1_hitbox_opacity = imgui.slider_int("##p1_HitboxOpacity", p1_hitbox_opacity, 0, 100)
-						end
-						imgui.table_set_column_index(2)
-						if not hide_p2 and display_p2_hitboxes then
-							changed, p2_hitbox_opacity = imgui.slider_int("##p2_HitboxOpacity", p2_hitbox_opacity, 0, 100)
+						if display_p1_proximityboxes or display_p2_proximityboxes then
+							imgui.table_next_row()
+							imgui.table_set_column_index(0)
+							imgui.text("Proximity")
+							imgui.table_set_column_index(1)
+							if not hide_p1 and display_p1_proximityboxes then
+								changed, p1_proximitybox_opacity = imgui.slider_int("##p1_ProximityBoxOpacity", p1_proximitybox_opacity, 0, 100)
+							end
+							imgui.table_set_column_index(2)
+							if not hide_p2 and display_p2_proximityboxes then
+								changed, p2_proximitybox_opacity = imgui.slider_int("##p2_ProximityBoxOpacity", p2_proximitybox_opacity, 0, 100)
+							end
 						end
 
-						imgui.table_next_row()
-						imgui.table_set_column_index(0)
-						imgui.text("Hurtboxes")
-						imgui.table_set_column_index(1)
-						if not hide_p1 and display_p1_hurtboxes then
-							changed, p1_hurtbox_opacity = imgui.slider_int("##p1_HurtboxOpacity", p1_hurtbox_opacity, 0, 100)
+						if display_p1_position or display_p2_position then
+							imgui.table_next_row()
+							imgui.table_set_column_index(0)
+							imgui.text("Position")
+							imgui.table_set_column_index(1)
+							if not hide_p1 and display_p1_position then
+								changed, p1_position_opacity = imgui.slider_int("##p1_positionOpacity", p1_position_opacity, 0, 100)
+							end
+							imgui.table_set_column_index(2)
+							if not hide_p2 and display_p2_position then
+								changed, p2_position_opacity = imgui.slider_int("##p2_positionOpacity", p2_position_opacity, 0, 100)
+							end
 						end
-						imgui.table_set_column_index(2)
-						if not hide_p2 and display_p2_hurtboxes then
-							changed, p2_hurtbox_opacity = imgui.slider_int("##p2_HurtboxOpacity", p2_hurtbox_opacity, 0, 100)
+							
+						imgui.end_table()
 						end
-					imgui.end_table()
 					end
+					
+				imgui.tree_pop()
 				end
-				
-			imgui.tree_pop()
 			end
 
 		imgui.end_window()
@@ -780,14 +838,14 @@ re.on_frame(function()
 					draw_p1_boxes(obj, actParam)
 					local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
 						if objPos and display_p1_position then
-						draw.filled_circle(objPos.x, objPos.y, 10, 0xFFFFFFFF, 10);
+						draw.filled_circle(objPos.x, objPos.y, 10, applyOpacity(p1_position_opacity, 0xFFFFFF), 10);
 					end
 				end
 				if actParam and not obj:get_IsR0Die() and obj:get_IsTeam2P() then
 					draw_p2_boxes(obj, actParam)
 					local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
 						if objPos and display_p2_position then
-						draw.filled_circle(objPos.x, objPos.y, 10, 0xFFFFFFFF, 10);
+						draw.filled_circle(objPos.x, objPos.y, 10, applyOpacity(p2_position_opacity, 0xFFFFFF), 10);
 					end
 				end
 			end
@@ -799,14 +857,14 @@ re.on_frame(function()
 					draw_p1_boxes(player, actParam)
 					local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
 					if worldPos and display_p1_position then
-						draw.filled_circle(worldPos.x, worldPos.y, 10, 0xFFFFFFFF, 10);
+						draw.filled_circle(worldPos.x, worldPos.y, 10, applyOpacity(p1_position_opacity, 0xFFFFFF), 10);
 					end
 				end
 				if i == 1 and actParam and not hide_p2 then
 					draw_p2_boxes(player, actParam)
 					local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
 					if worldPos and display_p2_position then
-						draw.filled_circle(worldPos.x, worldPos.y, 10, 0xFFFFFFFF, 10);
+						draw.filled_circle(worldPos.x, worldPos.y, 10, applyOpacity(p2_position_opacity, 0xFFFFFF), 10);
 					end
 				end
 			end
