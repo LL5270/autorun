@@ -25,7 +25,7 @@ local default = {
 	p1_hurtbox_opacity = 25,
 	p1_pushbox_opacity = 25,
 	p1_proximitybox_opacity = 25,
-	p1_position_opacity = 25,
+	p1_position_opacity = 100,
 	hide_p2 = false,
 	display_p2_hitboxes = true,
 	display_p2_hurtboxes = true,
@@ -41,7 +41,7 @@ local default = {
 	p2_hurtbox_opacity = 25,
 	p2_pushbox_opacity = 25,
 	p2_proximitybox_opacity = 25,
-	p2_position_opacity = 25,
+	p2_position_opacity = 100,
 	display_options_menu = true
 }
 for k, v in pairs(default) do
@@ -555,7 +555,7 @@ local function saver_drag_int(label, val, speed, min, max)
     return changed, new_val
 end
 
-local function toggle_row(label, config_suffix, id_suffix)
+local function set_toggler(label, config_suffix, id_suffix)
     imgui.table_next_row()
     imgui.table_set_column_index(0)
     imgui.text(label)
@@ -569,7 +569,7 @@ local function toggle_row(label, config_suffix, id_suffix)
     end
 end
 
-local function opacity_row(label, box_type, opacity_suffix)
+local function set_opacitier(label, box_type, opacity_suffix)
     local p1_display = "display_p1_" .. box_type
     local p2_display = "display_p2_" .. box_type
     local p1_opacity = "p1_" .. opacity_suffix .. "_opacity"
@@ -592,53 +592,9 @@ end
 
 re.on_draw_ui(function()
     if imgui.tree_node("Hitbox Viewer") then
-		if imgui.tree_node("General") then
-			changed, config.display_options_menu = saver_checkbox("Display Options Menu", config.display_options_menu)
-			imgui.tree_pop()
-		end
-
-		if imgui.tree_node("Opacity") then
-			imgui.push_item_width(60)
-			changed, config.p1_hitbox_opacity = saver_drag_int("P1 Hitbox", config.p1_hitbox_opacity, 0.5, 0, 100)
-			changed, config.p1_hurtbox_opacity = saver_drag_int("P1 Hurtbox", config.p1_hurtbox_opacity, 0.5, 0, 100)
-			changed, config.p2_hitbox_opacity = saver_drag_int("P2 Hitbox", config.p2_hitbox_opacity, 0.5, 0, 100)
-			changed, config.p2_hurtbox_opacity = saver_drag_int("P2 Hurtbox", config.p2_hurtbox_opacity, 0.5, 0, 100)
-			imgui.pop_item_width()
-			imgui.tree_pop()
-		end
-
-		if imgui.tree_node("Player 1") then 
-			changed, config.display_p1_hitboxes = saver_checkbox("Display Hitboxes", config.display_p1_hitboxes)
-			changed, config.display_p1_hurtboxes = saver_checkbox("Display Hurtboxes", config.display_p1_hurtboxes)
-			changed, config.display_p1_pushboxes = saver_checkbox("Display Pushboxes", config.display_p1_pushboxes)
-			changed, config.display_p1_throwboxes = saver_checkbox("Display Throw Boxes", config.display_p1_throwboxes)
-			changed, config.display_p1_throwhurtboxes = saver_checkbox("Display Throw Hurtboxes", config.display_p1_throwhurtboxes)
-			changed, config.display_p1_proximityboxes = saver_checkbox("Display Proximity Boxes", config.display_p1_proximityboxes)
-			changed, config.display_p1_clashbox = saver_checkbox("Display Projectile Clash Boxes", config.display_p1_clashbox)
-			changed, config.display_p1_uniqueboxes = saver_checkbox("Display Unique Boxes", config.display_p1_uniqueboxes)
-			changed, config.display_p1_properties = saver_checkbox("Display Properties", config.display_p1_properties)
-			changed, config.display_p1_position = saver_checkbox("Display Position", config.display_p1_position)
-			changed, config.hide_p1 = saver_checkbox("Hide P1 Boxes", config.hide_p1)
-			imgui.tree_pop()
-		end
-
-		if imgui.tree_node("Player 2") then 
-			changed, config.display_p2_hitboxes = saver_checkbox("Display Hitboxes", config.display_p2_hitboxes)
-			changed, config.display_p2_hurtboxes = saver_checkbox("Display Hurtboxes", config.display_p2_hurtboxes)
-			changed, config.display_p2_pushboxes = saver_checkbox("Display Pushboxes", config.display_p2_pushboxes)
-			changed, config.display_p2_throwboxes = saver_checkbox("Display Throw Boxes", config.display_p2_throwboxes)
-			changed, config.display_p2_throwhurtboxes = saver_checkbox("Display Throw Hurtboxes", config.display_p2_throwhurtboxes)
-			changed, config.display_p2_proximityboxes = saver_checkbox("Display Proximity Boxes", config.display_p2_proximityboxes)
-			changed, config.display_p2_clashbox = saver_checkbox("Display Projectile Clash Boxes", config.display_p2_clashbox)
-			changed, config.display_p2_uniqueboxes = saver_checkbox("Display Unique Boxes", config.display_p2_uniqueboxes)
-			changed, config.display_p2_properties = saver_checkbox("Display Properties", config.display_p2_properties)
-			changed, config.display_p2_position = saver_checkbox("Display Position", config.display_p2_position)
-			changed, config.hide_p2 = saver_checkbox("Hide P2 Boxes", config.hide_p2)
-			imgui.tree_pop()
-		end
-        
+		changed, config.display_options_menu = saver_checkbox("Display Options Menu", config.display_options_menu)
 		imgui.tree_pop()
-    end
+	end
 end)
 
 re.on_frame(function()
@@ -657,14 +613,12 @@ re.on_frame(function()
 			imgui.begin_window("Hitboxes", true, 0)
 
 			if imgui.tree_node("Toggle") then
-				local toggleCol1Width = 60
-				local toggleCol2Width = 20
-				local toggleCol3Width = 20
 				
 				if imgui.begin_table("OptionsTable", 3) then
-					imgui.table_setup_column("", nil, toggleCol1Width)
-					imgui.table_setup_column("P1", nil, toggleCol2Width)
-					imgui.table_setup_column("P2", nil, toggleCol3Width)
+					imgui.table_setup_column("", nil, 60)
+					imgui.table_setup_column("P1", nil, 20)
+					imgui.table_setup_column("P2", nil, 20)
+					
 					imgui.table_headers_row()
 
 					imgui.table_next_row()
@@ -676,16 +630,16 @@ re.on_frame(function()
 					changed, config.hide_p2 = saver_checkbox("##p2_Hide", config.hide_p2)
 					
 					if not config.hide_p1 or not config.hide_p2 then
-						toggle_row("Hitbox", "hitboxes", "Hitboxes")
-						toggle_row("Hurtbox", "hurtboxes", "Hurtboxes")
-						toggle_row("Pushbox", "pushboxes", "Pushboxes")
-						toggle_row("Throwbox", "throwboxes", "ThrowBoxes")
-						toggle_row("Throw Hurtbox", "throwhurtboxes", "ThrowHurtboxes")
-						toggle_row("Proximity Box", "proximityboxes", "ProximityBoxes")
-						toggle_row("Proj. Clash Box", "clashbox", "ProjectileClash")
-						toggle_row("Unique Box", "uniqueboxes", "UniqueBoxes")
-						toggle_row("Properties", "properties", "Properties")
-						toggle_row("Position", "position", "Position")
+						set_toggler("Hitbox", "hitboxes", "Hitboxes")
+						set_toggler("Hurtbox", "hurtboxes", "Hurtboxes")
+						set_toggler("Pushbox", "pushboxes", "Pushboxes")
+						set_toggler("Throwbox", "throwboxes", "ThrowBoxes")
+						set_toggler("Throw Hurtbox", "throwhurtboxes", "ThrowHurtboxes")
+						set_toggler("Proximity Box", "proximityboxes", "ProximityBoxes")
+						set_toggler("Proj. Clash Box", "clashbox", "ProjectileClash")
+						set_toggler("Unique Box", "uniqueboxes", "UniqueBoxes")
+						set_toggler("Properties", "properties", "Properties")
+						set_toggler("Position", "position", "Position")
 					end
 					imgui.end_table()
 				end
@@ -694,31 +648,24 @@ re.on_frame(function()
 
 			if not config.hide_p1 or not config.hide_p2 then
 				if imgui.tree_node("Opacity") then
-					local opacityCol1Width = 60
-					local opacityCol2Width = 20
-					local opacityCol3Width = 20
 
 					if not config.hide_p1 or not config.hide_p2 then
 						if imgui.begin_table("OpacityTable", 3) then
-							imgui.table_setup_column("", nil, opacityCol1Width)
-							if not config.hide_p1 then
-								imgui.table_setup_column("P1", nil, opacityCol2Width)
-							else
-								imgui.table_setup_column("", nil, opacityCol2Width)
-							end
-							if not config.hide_p2 then
-								imgui.table_setup_column("P2", nil, opacityCol3Width)
-							else
-								imgui.table_setup_column("", nil, opacityCol3Width)
-							end
+							imgui.table_setup_column("", nil, 60)
+
+							if not config.hide_p1 then imgui.table_setup_column("P1", nil, 20)
+							else imgui.table_setup_column("", nil, 20) end
+
+							if not config.hide_p2 then imgui.table_setup_column("P2", nil, 20)
+							else imgui.table_setup_column("", nil, 20) end
 
 							imgui.table_headers_row()
 
-							opacity_row("Hitbox", "hitboxes", "hitbox")
-							opacity_row("Hurtbox", "hurtboxes", "hurtbox")
-							opacity_row("Pushbox", "pushboxes", "pushbox")
-							opacity_row("Proximity", "proximityboxes", "proximitybox")
-							opacity_row("Position", "position", "position")
+							set_opacitier("Hitbox", "hitboxes", "hitbox")
+							set_opacitier("Hurtbox", "hurtboxes", "hurtbox")
+							set_opacitier("Pushbox", "pushboxes", "pushbox")
+							set_opacitier("Proximity", "proximityboxes", "proximitybox")
+							set_opacitier("Position", "position", "position")
 							
 							imgui.end_table()
 						end
