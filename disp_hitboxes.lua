@@ -17,14 +17,18 @@ local default = {
 	display_p1_throwboxes = true,
 	display_p1_throwhurtboxes = true,
 	display_p1_proximityboxes = true,
+	display_p1_clashboxes = true,
 	display_p1_uniqueboxes = true,
 	display_p1_properties = true,
 	display_p1_position = true,
-	display_p1_clashbox = true,
 	p1_hitbox_opacity = 25,
 	p1_hurtbox_opacity = 25,
 	p1_pushbox_opacity = 25,
+	p1_throwbox_opacity = 25,
+	p1_throwhurtbox_opacity = 25,
 	p1_proximitybox_opacity = 25,
+	p1_clashbox_opacity = 25,
+	p1_uniquebox_opacity = 25,
 	p1_position_opacity = 100,
 	hide_p2 = false,
 	display_p2_hitboxes = true,
@@ -33,17 +37,22 @@ local default = {
 	display_p2_throwboxes = true,
 	display_p2_throwhurtboxes = true,
 	display_p2_proximityboxes = true,
+	display_p2_clashboxes = true,
 	display_p2_uniqueboxes = true,
 	display_p2_properties = true,
 	display_p2_position = true,
-	display_p2_clashbox = true,
 	p2_hitbox_opacity = 25,
 	p2_hurtbox_opacity = 25,
 	p2_pushbox_opacity = 25,
+	p2_throwbox_opacity = 25,
+	p2_throwhurtbox_opacity = 25,
 	p2_proximitybox_opacity = 25,
+	p2_clashbox_opacity = 25,
+	p2_uniquebox_opacity = 25,
 	p2_position_opacity = 100,
 	display_options_menu = true
 }
+
 for k, v in pairs(default) do
 	if config[k] == nil then
 		config[k] = v
@@ -61,6 +70,11 @@ local function setup_hook(type_name, method_name, pre_func, post_func)
 end
 
 -- Hide drawn objects when game is paused
+setup_hook("app.training.TrainingManager", "BattleStart", nil, function(retval)
+    isUnpaused = true
+    return retval
+end)
+
 setup_hook("app.PauseManager", "requestPauseStart", nil, function(retval)
     isUnpaused = false
     return retval
@@ -184,7 +198,7 @@ local draw_p1_boxes = function ( work, actParam )
 					-- Except for JP's command grab projectile which has neither and must be caught with CondFlag of 0x2C0
 					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) and config.display_p1_throwboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFD080FF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4DD080FF)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1_throwbox_opacity, 0xD080FF))
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -230,9 +244,9 @@ local draw_p1_boxes = function ( work, actParam )
 							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
 						end
 					-- Projectile Clash boxes have a GuardBit of 0 (while most other boxes have either 7 or some random, non-zero, positive integer)
-					elseif rect.GuardBit == 0 and config.display_p1_clashbox then
+					elseif rect.GuardBit == 0 and config.display_p1_clashboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF3891E6)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x403891E6)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1_clashbox_opacity, 0x3891E6))
 					-- Any remaining boxes are drawn as proximity boxes
 					elseif config.display_p1_proximityboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF5b5b5b)
@@ -307,11 +321,11 @@ local draw_p1_boxes = function ( work, actParam )
 				-- UniqueBoxes have a special field called KeyData
 				elseif rect:get_field("KeyData") ~= nil and config.display_p1_uniqueboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFEEFF00)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4DEEFF00)
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1_uniquebox_opacity, 0xEEFF00))
 				-- Any remaining rectangles are drawn as a grab box
 				elseif rect:get_field("KeyData") == nil and config.display_p1_throwhurtboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0000)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4DFF0000)
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1_throwhurtbox_opacity, 0xFF0000))
 				end
 			end
 		end
@@ -394,7 +408,7 @@ local draw_p2_boxes = function ( work, actParam )
 					-- Except for JP's command grab projectile which has neither and must be caught with CondFlag of 0x2C0
 					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) and config.display_p2_throwboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFD080FF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4DD080FF)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2_throwbox_opacity, 0xD080FF))
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -440,9 +454,9 @@ local draw_p2_boxes = function ( work, actParam )
 							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
 						end
 					-- Projectile Clash boxes have a GuardBit of 0 (while most other boxes have either 7 or some random, non-zero, positive integer)
-					elseif rect.GuardBit == 0 and config.display_p2_clashbox then
+					elseif rect.GuardBit == 0 and config.display_p2_clashboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF3891E6)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x403891E6)
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2_clashbox_opacity, 0x3891E6))
 					-- Any remaining boxes are drawn as proximity boxes
 					elseif config.display_p2_proximityboxes then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF5b5b5b)
@@ -517,11 +531,11 @@ local draw_p2_boxes = function ( work, actParam )
 				-- UniqueBoxes have a special field called KeyData
 				elseif rect:get_field("KeyData") ~= nil and config.display_p2_uniqueboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFEEFF00)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4DEEFF00)
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2_uniquebox_opacity, 0xEEFF00))
 				-- Any remaining rectangles are drawn as a grab box
 				elseif rect:get_field("KeyData") == nil and config.display_p2_throwhurtboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0000)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0x4DFF0000)
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2_throwhurtbox_opacity, 0xFF0000))
 				end
 			end
 		end
@@ -569,7 +583,7 @@ local function set_toggler(label, config_suffix, id_suffix)
     end
 end
 
-local function set_opacitier(label, box_type, opacity_suffix)
+local function set_opacifier(label, box_type, opacity_suffix)
     local p1_display = "display_p1_" .. box_type
     local p2_display = "display_p2_" .. box_type
     local p1_opacity = "p1_" .. opacity_suffix .. "_opacity"
@@ -599,7 +613,7 @@ end)
 
 re.on_frame(function()
 	if save_pending then
-		save_timer = save_timer - (1.0 / 60.0)  -- Assume 60 FPS
+		save_timer = save_timer - (1.0 / 60.0)
 		if save_timer <= 0 then
 			save_config()
 		end
@@ -616,8 +630,8 @@ re.on_frame(function()
 				
 				if imgui.begin_table("OptionsTable", 3) then
 					imgui.table_setup_column("", nil, 60)
-					imgui.table_setup_column("P1", nil, 20)
-					imgui.table_setup_column("P2", nil, 20)
+					imgui.table_setup_column("P1", nil, 35)
+					imgui.table_setup_column("P2", nil, 35)
 					
 					imgui.table_headers_row()
 
@@ -636,7 +650,7 @@ re.on_frame(function()
 						set_toggler("Throwbox", "throwboxes", "ThrowBoxes")
 						set_toggler("Throw Hurtbox", "throwhurtboxes", "ThrowHurtboxes")
 						set_toggler("Proximity Box", "proximityboxes", "ProximityBoxes")
-						set_toggler("Proj. Clash Box", "clashbox", "ProjectileClash")
+						set_toggler("Proj. Clash Box", "clashboxes", "ProjectileClash")
 						set_toggler("Unique Box", "uniqueboxes", "UniqueBoxes")
 						set_toggler("Properties", "properties", "Properties")
 						set_toggler("Position", "position", "Position")
@@ -653,19 +667,21 @@ re.on_frame(function()
 						if imgui.begin_table("OpacityTable", 3) then
 							imgui.table_setup_column("", nil, 60)
 
-							if not config.hide_p1 then imgui.table_setup_column("P1", nil, 20)
-							else imgui.table_setup_column("", nil, 20) end
+							if not config.hide_p1 then imgui.table_setup_column("", nil, 35)
+							else imgui.table_setup_column("", nil, 35) end
 
-							if not config.hide_p2 then imgui.table_setup_column("P2", nil, 20)
-							else imgui.table_setup_column("", nil, 20) end
+							if not config.hide_p2 then imgui.table_setup_column("", nil, 35)
+							else imgui.table_setup_column("", nil, 35) end
 
-							imgui.table_headers_row()
-
-							set_opacitier("Hitbox", "hitboxes", "hitbox")
-							set_opacitier("Hurtbox", "hurtboxes", "hurtbox")
-							set_opacitier("Pushbox", "pushboxes", "pushbox")
-							set_opacitier("Proximity", "proximityboxes", "proximitybox")
-							set_opacitier("Position", "position", "position")
+							set_opacifier("Hitbox", "hitboxes", "hitbox")
+							set_opacifier("Hurtbox", "hurtboxes", "hurtbox")
+							set_opacifier("Pushbox", "pushboxes", "pushbox")	
+							set_opacifier("Throwbox", "throwboxes", "throwbox")
+							set_opacifier("Throw Hurtbox", "throwhurtboxes", "throwhurtbox")
+							set_opacifier("Proximity Box", "proximityboxes", "proximitybox")
+							set_opacifier("Clash Box", "clashboxes", "clashbox")
+							set_opacifier("Unique Box", "uniqueboxes", "uniquebox")
+							set_opacifier("Position", "position", "position")
 							
 							imgui.end_table()
 						end
