@@ -1,13 +1,14 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
 local CONFIG_PATH = "disp_hitboxes.json"
+local config = json.load_file(CONFIG_PATH) or {}
+
+local SAVE_DELAY = 0.5
 local save_pending = false
 local save_timer = 0
-local SAVE_DELAY = 0.5
+
 local changed
 local gBattle
 local isUnpaused = true
-local config = json.load_file(CONFIG_PATH) or {}
-
 local default = {
 	hide_p1 = false,
 	display_p1_hitboxes = true,
