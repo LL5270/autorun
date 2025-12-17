@@ -1,4 +1,6 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
+
+local reframework = reframework
 local CONFIG_PATH = "disp_hitboxes.json"
 local config = json.load_file(CONFIG_PATH) or {}
 
@@ -18,25 +20,42 @@ default.p1 = {}
 default.p1.toggle = {
 	hide_all = false,
 	hitboxes = true,
+	hitboxes_outline = true,
 	hurtboxes = true,
+	hurtboxes_outline = true,
 	pushboxes = true,
+	pushboxes_outline = true,
 	throwboxes = true,
+	throwboxes_outline = true,
 	throwhurtboxes = true,
+	throwhurtboxes_outline = true,
 	proximityboxes = true,
+	proximityboxes_outline = true,
 	clashboxes = true,
+	clashboxes_outline = true,
 	uniqueboxes = true,
+	uniqueboxes_outline = true,
 	properties = true,
 	position = true
 }
 default.p1.opacity = {
 	hitbox = 25,
+	hitbox_outline = 25,
 	hurtbox = 25,
+	hurtbox_outline = 25,
 	pushbox = 25,
+	pushbox_outline = 25,
 	throwbox = 25,
+	throwbox_outline = 25,
 	throwhurtbox = 25,
+	throwhurtbox_outline = 25,
 	proximitybox = 25,
+	proximitybox_outline = 25,
 	clashbox = 25,
+	clashbox_outline = 25,
 	uniquebox = 25,
+	uniquebox_outline = 25,
+	properties = 100,
 	position = 100
 }
 
@@ -44,25 +63,42 @@ default.p2 = {}
 default.p2.toggle = {
 	hide_all = false,
 	hitboxes = true,
+	hitboxes_outline = true,
 	hurtboxes = true,
+	hurtboxes_outline = true,
 	pushboxes = true,
+	pushboxes_outline = true,
 	throwboxes = true,
+	throwboxes_outline = true,
 	throwhurtboxes = true,
+	throwhurtboxes_outline = true,
 	proximityboxes = true,
+	proximityboxes_outline = true,
 	clashboxes = true,
+	clashboxes_outline = true,
 	uniqueboxes = true,
+	uniqueboxes_outline = true,
 	properties = true,
 	position = true
 }
 default.p2.opacity = {
 	hitbox = 25,
+	hitbox_outline = 25,
 	hurtbox = 25,
+	hurtbox_outline = 25,
 	pushbox = 25,
+	pushbox_outline = 25,
 	throwbox = 25,
+	throwbox_outline = 25,
 	throwhurtbox = 25,
+	throwhurtbox_outline = 25,
 	proximitybox = 25,
+	proximitybox_outline = 25,
 	clashbox = 25,
+	clashbox_outline = 25,
 	uniquebox = 25,
+	uniquebox_outline = 25,
+	properties = 100,
 	position = 100
 }
 
@@ -97,7 +133,7 @@ setup_hook("app.PauseManager", "requestPauseEnd", nil, function(retval)
     return retval
 end)
 
-local applyOpacity = function ( alphaInt, colorWithoutAlpha )
+local apply_opacity = function ( alphaInt, colorWithoutAlpha )
 	if alphaInt < 0 then alphaInt = 0 end
 	if alphaInt > 100 then alphaInt = 100 end
 
@@ -160,9 +196,13 @@ local draw_p1_boxes = function ( work, actParam )
 				-- If the rectangle has a HitPos field, it falls under attack boxes
 				if rect:get_field("HitPos") ~= nil then
 					-- TypeFlag > 0 indicates a regular hitbox
-					if rect.TypeFlag > 0 and config.p1.toggle.hitboxes then 
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF0040C0)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.hitbox, 0x0040C0))
+					if rect.TypeFlag > 0 then
+						if config.p1.toggle.hitboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.hitbox_outline, 0x0040C0))
+						end
+						if config.p1.toggle.hitboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.hitbox, 0x0040C0))
+						end
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -198,19 +238,23 @@ local draw_p1_boxes = function ( work, actParam )
 							local fullString = ""
 							if string.len(hitboxExceptions) > 10 then
 								-- Remove final commma
-								hitboxExceptions = string.sub(hitboxExceptions, 0, -3)
+								hitboxExceptions = string.sub(hitboxExceptions, 1, -3)
 								fullString = fullString .. hitboxExceptions .. "\n"
 							end
 							if string.len(comboOnly) > 6 then
 								fullString = fullString .. comboOnly .. "\n"
 							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
+							draw.text(fullString, finalPosX, (finalPosY + finalSclY), apply_opacity(config.p1.opacity.properties, 0xFFFFFF))
 						end
 					-- Throws almost* universally have a TypeFlag of 0 and a PoseBit > 0 
 					-- Except for JP's command grab projectile which has neither and must be caught with CondFlag of 0x2C0
-					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) and config.p1.toggle.throwboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFD080FF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.throwbox, 0xD080FF))
+					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) then
+						if config.p1.toggle.throwboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.throwbox_outline, 0xD080FF))
+						end
+						if config.p1.toggle.throwboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.throwbox, 0xD080FF))
+						end
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -246,41 +290,59 @@ local draw_p1_boxes = function ( work, actParam )
 						if config.p1.toggle.properties then
 							local fullString = ""
 							if string.len(hitboxExceptions) > 10 then
-								-- Remove final commma
-								hitboxExceptions = string.sub(hitboxExceptions, 0, -3)
+								-- Remove final comma
+								hitboxExceptions = string.sub(hitboxExceptions, 1, -3)
 								fullString = fullString .. hitboxExceptions .. "\n"
 							end
 							if string.len(comboOnly) > 6 then
 								fullString = fullString .. comboOnly .. "\n"
 							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
+							draw.text(fullString, finalPosX, (finalPosY + finalSclY), apply_opacity(config.p1.opacity.properties, 0xFFFFFF))
 						end
 					-- Projectile Clash boxes have a GuardBit of 0 (while most other boxes have either 7 or some random, non-zero, positive integer)
-					elseif rect.GuardBit == 0 and config.p1.toggle.clashboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF3891E6)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.clashbox, 0x3891E6))
+					elseif rect.GuardBit == 0 then
+						if config.p1.toggle.clashboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.clashbox_outline, 0x3891E6))
+						end
+						if config.p1.toggle.clashboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.clashbox, 0x3891E6))
+						end
 					-- Any remaining boxes are drawn as proximity boxes
-					elseif config.p1.toggle.proximityboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF5b5b5b)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.proximitybox, 0x5b5b5b))
+					elseif config.p1.toggle.proximityboxes or config.p1.toggle.proximityboxes_outline then
+						if config.p1.toggle.proximityboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.proximitybox_outline, 0x5b5b5b))
+						end
+						if config.p1.toggle.proximityboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.proximitybox, 0x5b5b5b))
+						end
 					end
 				-- If the box contains the Attr field, then it is a pushbox
 				elseif rect:get_field("Attr") ~= nil then
+					if config.p1.toggle.pushboxes_outline then
+						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.pushbox_outline, 0x00FFFF))
+					end
 					if config.p1.toggle.pushboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FFFF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.pushbox, 0x00FFFF))
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.pushbox, 0x00FFFF))
 					end
 				-- If the rectangle has a HitNo field, the box falls under hurt boxes
 				elseif rect:get_field("HitNo") ~= nil then
-					if config.p1.toggle.hurtboxes then
+					if config.p1.toggle.hurtboxes or config.p1.toggle.hurtboxes_outline then
 						-- Armor (Type: 1) & Parry (Type: 2) Boxes
-						if rect.Type == 2 or rect.Type == 1 then			
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0080)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.hurtbox, 0xFF0080))
+						if rect.Type == 2 or rect.Type == 1 then
+							if config.p1.toggle.hurtboxes_outline then	
+								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.hurtbox_outline, 0xFF0080))
+							end
+							if config.p1.toggle.hurtboxes then
+								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.hurtbox, 0xFF0080))
+							end
 						-- All other hurtboxes
 						else
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FF00)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.hurtbox, 0x00FF00))
+							if config.p1.toggle.hurtboxes_outline then
+								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.hurtbox, 0xFF0080))
+							end
+							if config.p1.toggle.hurtboxes then
+								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.hurtbox, 0x00FF00))
+							end
 						end
 						-- Identify HurtboxType as text (each at a unique height)
 						local hurtInvuln = ""
@@ -323,21 +385,25 @@ local draw_p1_boxes = function ( work, actParam )
 								fullString = fullString .. hurtInvuln .. "\n"
 							end
 							if string.len(hurtImmune) > 0 then
-								hurtImmune = string.sub(hurtImmune, 0, -3)
+								hurtImmune = string.sub(hurtImmune, 1, -3)
 								hurtImmune = hurtImmune .. " Attack Intangible"
 								fullString = fullString .. hurtImmune .. "\n"
 							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
+							draw.text(fullString, finalPosX, (finalPosY + finalSclY), apply_opacity(config.p1.opacity.properties, 0xFFFFFF))
 						end
 					end
-				-- UniqueBoxes have a special field called KeyData
-				elseif rect:get_field("KeyData") ~= nil and config.p1.toggle.uniqueboxes then
-					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFEEFF00)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.uniquebox, 0xEEFF00))
+				-- Uniqueboxes have a special field called KeyData
+				elseif rect:get_field("KeyData") ~= nil then
+					if config.p1.toggle.uniqueboxes_outline then
+						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.uniquebox_outline))
+					end
+					if config.p1.toggle.uniqueboxes then
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.uniquebox, 0xEEFF00))
+					end
 				-- Any remaining rectangles are drawn as a grab box
 				elseif rect:get_field("KeyData") == nil and config.p1.toggle.throwhurtboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0000)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p1.opacity.throwhurtbox, 0xFF0000))
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p1.opacity.throwhurtbox, 0xFF0000))
 				end
 			end
 		end
@@ -370,9 +436,13 @@ local draw_p2_boxes = function ( work, actParam )
 				-- If the rectangle has a HitPos field, it falls under attack boxes
 				if rect:get_field("HitPos") ~= nil then
 					-- TypeFlag > 0 indicates a regular hitbox
-					if rect.TypeFlag > 0 and config.p2.toggle.hitboxes then 
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF0040C0)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.hitbox, 0x0040C0))
+					if rect.TypeFlag > 0 then
+						if config.p2.toggle.hitboxes_outline then 
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.hitbox_outline, 0x0040C0))
+						end
+						if config.p2.toggle.hitboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.hitbox, 0x0040C0))
+						end
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -408,19 +478,23 @@ local draw_p2_boxes = function ( work, actParam )
 							local fullString = ""
 							if string.len(hitboxExceptions) > 10 then
 								-- Remove final commma
-								hitboxExceptions = string.sub(hitboxExceptions, 0, -3)
+								hitboxExceptions = string.sub(hitboxExceptions, 1, -3)
 								fullString = fullString .. hitboxExceptions .. "\n"
 							end
 							if string.len(comboOnly) > 6 then
 								fullString = fullString .. comboOnly .. "\n"
 							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
+							draw.text(fullString, finalPosX, (finalPosY + finalSclY), apply_opacity(config.p2.properties, 0xFFFFFF))
 						end
 					-- Throws almost* universally have a TypeFlag of 0 and a PoseBit > 0 
 					-- Except for JP's command grab projectile which has neither and must be caught with CondFlag of 0x2C0
-					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) and config.p2.toggle.throwboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFD080FF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.throwbox, 0xD080FF))
+					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) then
+						if config.p2.toggle.throwboxes_outline then 
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.throwbox_outline, 0xD080FF))
+						end
+						if config.p2.toggle.throwboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.throwbox, 0xD080FF))
+						end
 						-- Identify hitbox properties
 						local hitboxExceptions = "Can't Hit "
 						local comboOnly = "Combo "
@@ -457,40 +531,58 @@ local draw_p2_boxes = function ( work, actParam )
 							local fullString = ""
 							if string.len(hitboxExceptions) > 10 then
 								-- Remove final commma
-								hitboxExceptions = string.sub(hitboxExceptions, 0, -3)
+								hitboxExceptions = string.sub(hitboxExceptions, 1, -3)
 								fullString = fullString .. hitboxExceptions .. "\n"
 							end
 							if string.len(comboOnly) > 6 then
 								fullString = fullString .. comboOnly .. "\n"
 							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
+							draw.text(fullString, finalPosX, (finalPosY + finalSclY), apply_opacity(config.p2.opacity.properties, 0xFFFFFF))
 						end
 					-- Projectile Clash boxes have a GuardBit of 0 (while most other boxes have either 7 or some random, non-zero, positive integer)
-					elseif rect.GuardBit == 0 and config.p2.toggle.clashboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF3891E6)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.clashbox, 0x3891E6))
+					elseif rect.GuardBit == 0 then
+						if config.p2.toggle.clashboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.clashbox_outline, 0x3891E6))
+						end
+						if config.p2.toggle.clashboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.clashbox, 0x3891E6))
+						end
 					-- Any remaining boxes are drawn as proximity boxes
-					elseif config.p2.toggle.proximityboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF5b5b5b)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.proximitybox, 0x5b5b5b))
+					elseif config.p2.toggle.proximityboxes or config.p2.toggle.proximityboxes_outline then
+						if config.p2.toggle.proximityboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.proximitybox_outline, 0x5b5b5b))
+						end
+						if config.p2.toggle.proximityboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.proximitybox, 0x5b5b5b))
+						end
 					end
 				-- If the box contains the Attr field, then it is a pushbox
 				elseif rect:get_field("Attr") ~= nil then
+					if config.p2.toggle.pushboxes_outline then
+						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.pushbox_outline, 0x00FFFF))
+					end
 					if config.p2.toggle.pushboxes then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FFFF)
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.pushbox, 0x00FFFF))
+						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.pushbox, 0x00FFFF))
 					end
 				-- If the rectangle has a HitNo field, the box falls under hurt boxes
 				elseif rect:get_field("HitNo") ~= nil then
-					if config.p2.toggle.hurtboxes then
+					if config.p2.toggle.hurtboxes or config.p2.toggle.hurtboxes_outline then
 						-- Armor (Type: 1) & Parry (Type: 2) Boxes
-						if rect.Type == 2 or rect.Type == 1 then			
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0080)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.hurtbox, 0xFF0080))
+						if rect.Type == 2 or rect.Type == 1 then
+							if config.p2.toggle.hurtboxes_outline then
+								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.hurtbox_outline, 0xFF0080))
+							end
+							if config.p2.toggle.hurtboxes then
+								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.hurtbox, 0xFF0080))
+							end
 						-- All other hurtboxes
 						else
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFF00FF00)
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.hurtbox, 0x00FF00))
+							if config.p2.toggle.hurtboxes_outline then
+								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.hurtbox_outline, 0x00FF00))
+							end
+							if config.p2.toggle.hurtboxes then
+								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.hurtbox, 0x00FF00))
+							end
 						end
 						-- Identify HurtboxType as text (each at a unique height)
 						local hurtInvuln = ""
@@ -533,21 +625,21 @@ local draw_p2_boxes = function ( work, actParam )
 								fullString = fullString .. hurtInvuln .. "\n"
 							end
 							if string.len(hurtImmune) > 0 then
-								hurtImmune = string.sub(hurtImmune, 0, -3)
+								hurtImmune = string.sub(hurtImmune, 1, -3)
 								hurtImmune = hurtImmune .. " Attack Intangible"
 								fullString = fullString .. hurtImmune .. "\n"
 							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 0xFFFFFFFF)
+							draw.text(fullString, finalPosX, (finalPosY + finalSclY), apply_opacity(config.p2.opacity.properties, 0xFFFFFF))
 						end
 					end
-				-- UniqueBoxes have a special field called KeyData
+				-- Uniqueboxes have a special field called KeyData
 				elseif rect:get_field("KeyData") ~= nil and config.p2.toggle.uniqueboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFEEFF00)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.uniquebox, 0xEEFF00))
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.uniquebox, 0xEEFF00))
 				-- Any remaining rectangles are drawn as a grab box
 				elseif rect:get_field("KeyData") == nil and config.p2.toggle.throwhurtboxes then
 					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 0xFFFF0000)
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, applyOpacity(config.p2.opacity.throwhurtbox, 0xFF0000))
+					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, apply_opacity(config.p2.opacity.throwhurtbox, 0xFF0000))
 				end
 			end
 		end
@@ -574,7 +666,13 @@ local function saver_checkbox(label, val)
 end
 
 local function saver_drag_int(label, val, speed, min, max)
-    local changed, new_val = imgui.drag_int(label, val, speed or 1.0, min or 0, max or 100)
+	if val < 0 then
+		val = 0
+	elseif val > 100 then
+		val = 100
+	end
+    
+	local changed, new_val = imgui.drag_int(label, val, speed or 1.0, min or 0, max or 100)
     if changed then
         mark_for_save()
     end
@@ -613,6 +711,7 @@ local function set_opacifier(label, box_type, opacity_suffix)
         end
     end
 end
+
 local function deep_copy(obj)
     if type(obj) ~= 'table' then
         return obj
@@ -674,17 +773,14 @@ re.on_frame(function()
     gBattle = sdk.find_type_definition("gBattle")
     if gBattle then
 		local sPlayer = gBattle:get_field("Player"):get_data(nil)
-
 		if config.options.display_menu and sPlayer.prev_no_push_bit ~= 0 then
-			imgui.begin_window("Hitboxes", true, 0)
 
+			imgui.begin_window("Hitboxes", true, 64)
 			if imgui.tree_node("Toggle") then
-				
 				if imgui.begin_table("ToggleTable", 3) then
-					imgui.table_setup_column("", nil, 60)
-					imgui.table_setup_column("P1", nil, 35)
-					imgui.table_setup_column("P2", nil, 35)
-					
+					imgui.table_setup_column("", nil, 150)
+					imgui.table_setup_column("P1", nil, 76)
+					imgui.table_setup_column("P2", nil, 76)
 					imgui.table_headers_row()
 
 					imgui.table_next_row()
@@ -694,16 +790,23 @@ re.on_frame(function()
 					changed, config.p1.toggle.hide_all = saver_checkbox("##p1_Hide", config.p1.toggle.hide_all)
 					imgui.table_set_column_index(2)
 					changed, config.p2.toggle.hide_all = saver_checkbox("##p2_Hide", config.p2.toggle.hide_all)
-					
 					if not config.p1.toggle.hide_all or not config.p2.toggle.hide_all then
 						set_toggler("Hitbox", "hitboxes", "Hitboxes")
+						set_toggler("Hitbox Outline", "hitboxes_outline", "HitboxesOutline")
 						set_toggler("Hurtbox", "hurtboxes", "Hurtboxes")
+						set_toggler("Hurtbox Outline", "hurtboxes_outline", "HurtboxesOutline")
 						set_toggler("Pushbox", "pushboxes", "Pushboxes")
-						set_toggler("Throwbox", "throwboxes", "ThrowBoxes")
+						set_toggler("Pushbox Outline", "pushboxes_outline", "PushboxesOutline")
+						set_toggler("Throwbox", "throwboxes", "Throwboxes")
+						set_toggler("Throwbox Outline", "throwboxes_outline", "ThrowboxesOutline")
 						set_toggler("Throw Hurtbox", "throwhurtboxes", "ThrowHurtboxes")
+						set_toggler("Throw Hurtbox Outline", "throwhurtboxes_outline", "ThrowHurtboxesOutline")
 						set_toggler("Proximity Box", "proximityboxes", "ProximityBoxes")
+						set_toggler("Proximity Box Outline", "proximityboxes_outline", "ProximityboxesOutline")
 						set_toggler("Proj. Clash Box", "clashboxes", "ProjectileClash")
-						set_toggler("Unique Box", "uniqueboxes", "UniqueBoxes")
+						set_toggler("Proj. Clash Box Outline", "clashboxes_outline", "ProjectileClashOutline")
+						set_toggler("Unique Box", "uniqueboxes", "Uniqueboxes")
+						set_toggler("Unique Box Outline", "uniqueboxes_outline", "UniqueboxesOutline")
 						set_toggler("Properties", "properties", "Properties")
 						set_toggler("Position", "position", "Position")
 					end
@@ -714,27 +817,31 @@ re.on_frame(function()
 
 			if not config.p1.toggle.hide_all or not config.p2.toggle.hide_all then
 				if imgui.tree_node("Opacity") then
-
 					if not config.p1.toggle.hide_all or not config.p2.toggle.hide_all then
 						if imgui.begin_table("OpacityTable", 3) then
-							imgui.table_setup_column("", nil, 60)
-
-							if not config.p1.toggle.hide_all then imgui.table_setup_column("", nil, 35)
-							else imgui.table_setup_column("", nil, 35) end
-
-							if not config.p2.toggle.hide_all then imgui.table_setup_column("", nil, 35)
-							else imgui.table_setup_column("", nil, 35) end
-
+							imgui.table_setup_column("", nil, 150)
+							if not config.p1.toggle.hide_all then imgui.table_setup_column("", nil, 65)
+							else imgui.table_setup_column("", nil, 65) end
+							if not config.p2.toggle.hide_all then imgui.table_setup_column("", nil, 65)
+							else imgui.table_setup_column("", nil, 65) end
 							set_opacifier("Hitbox", "hitboxes", "hitbox")
+							set_opacifier("Hitbox Outline", "hitboxes_outline", "hitbox_outline")
 							set_opacifier("Hurtbox", "hurtboxes", "hurtbox")
-							set_opacifier("Pushbox", "pushboxes", "pushbox")	
+							set_opacifier("Hurtbox Outline", "hurtboxes_outline", "hurtbox_outline")
+							set_opacifier("Pushbox", "pushboxes", "pushbox")
+							set_opacifier("Pushbox Outline", "pushboxes_outline", "pushbox_outline")
 							set_opacifier("Throwbox", "throwboxes", "throwbox")
+							set_opacifier("Throwbox Outline", "throwboxes_outline", "throwbox_outline")
 							set_opacifier("Throw Hurtbox", "throwhurtboxes", "throwhurtbox")
+							set_opacifier("Throw Hurtbox Outline", "throwhurtboxes_outline", "throwhurtbox_outline")
 							set_opacifier("Proximity Box", "proximityboxes", "proximitybox")
-							set_opacifier("Clash Box", "clashboxes", "clashbox")
+							set_opacifier("Proximity Box Outline", "proximityboxes_outline", "proximitybox_outline")
+							set_opacifier("Proj. Clash Box", "clashboxes", "clashbox")
+							set_opacifier("Proj. Clash Box Outline", "clashboxes_outline", "clashbox_outline")
 							set_opacifier("Unique Box", "uniqueboxes", "uniquebox")
+							set_opacifier("Unique Box Outline", "uniqueboxes_outline", "uniquebox_outline")
+							set_opacifier("Properties", "properties", "properties")
 							set_opacifier("Position", "position", "position")
-							
 							imgui.end_table()
 						end
 					end
@@ -744,7 +851,7 @@ re.on_frame(function()
 			if imgui.tree_node("Options") then
 				if imgui.tree_node("Reset") then
 					if imgui.begin_table("ResetTable", 4) then
-						imgui.table_setup_column("", nil, 60)
+						imgui.table_setup_column("", nil, 100)
 						imgui.table_setup_column("", nil, 35)
 						imgui.table_setup_column("", nil, 35)
 						imgui.table_setup_column("", nil, 35)
@@ -812,14 +919,14 @@ re.on_frame(function()
 					draw_p1_boxes(obj, actParam)
 					local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
 						if objPos and config.p1.toggle.position then
-						draw.filled_circle(objPos.x, objPos.y, 10, applyOpacity(config.p1.opacity.position, 0xFFFFFF), 10);
+						draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10);
 					end
 				end
 				if actParam and not obj:get_IsR0Die() and obj:get_IsTeam2P() then
 					draw_p2_boxes(obj, actParam)
 					local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
 						if objPos and config.p2.toggle.position then
-						draw.filled_circle(objPos.x, objPos.y, 10, applyOpacity(config.p2.opacity.position, 0xFFFFFF), 10);
+						draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10);
 					end
 				end
 			end
@@ -831,14 +938,14 @@ re.on_frame(function()
 					draw_p1_boxes(player, actParam)
 					local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
 					if worldPos and config.p1.toggle.position then
-						draw.filled_circle(worldPos.x, worldPos.y, 10, applyOpacity(config.p1.opacity.position, 0xFFFFFF), 10);
+						draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10);
 					end
 				end
 				if i == 1 and actParam and not config.p2.toggle.hide_all then
 					draw_p2_boxes(player, actParam)
 					local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
 					if worldPos and config.p2.toggle.position then
-						draw.filled_circle(worldPos.x, worldPos.y, 10, applyOpacity(config.p2.opacity.position, 0xFFFFFF), 10);
+						draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10);
 					end
 				end
 			end

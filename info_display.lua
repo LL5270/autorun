@@ -1,4 +1,5 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
+
 local gBattle = sdk.find_type_definition("gBattle")
 local sPlayer = gBattle:get_field("Player"):get_data(nil)
 local cPlayer = sPlayer.mcPlayer
@@ -71,10 +72,50 @@ local function read_sfix(sfix_obj)
 end
 
 --imgui.colored_and_white_text = function(color_text, white_text)
-function imgui.multi_color(color_text, white_text)
-    imgui.text_colored(color_text, 0xFFAAFFFF) 
+function imgui.multi_color(first_text, second_text, second_text_color)
+    imgui.text_colored(first_text, 0xFFAAFFFF) 
     imgui.same_line()
-    imgui.text(white_text)
+	if second_text_color then
+	    imgui.text_colored(second_text, second_text_color)
+	else
+		imgui.text(second_text)
+	end
+end
+
+local function get_drive_color(drive)
+	if drive > 0 and drive < 10000 then
+		return 0xFFF55727
+	elseif drive > 10000 and drive < 2000 then
+		return 0xFFF5A927
+	elseif drive > 20000 and drive < 30000 then
+		return 0xFFF5DD27
+	elseif drive > 30000 and drive < 40000 then
+		return 0xFFDDF527
+	elseif drive > 40000 and drive < 50000 then
+		return 0xFFBBF527
+	elseif drive > 50000 then
+		return 0xFF5EF527
+	else
+		return 0xFFAAFFFF
+	end
+end
+
+local function get_super_color(super)
+	if super > 0 and super < 5000 then
+		return 0xFFF55727
+	elseif super > 5000 and super < 10000 then
+		return 0xFFF5A927
+	elseif super > 10000 and super < 15000 then
+		return 0xFFF5DD27
+	elseif super > 15000 and super < 20000 then
+		return 0xFFDDF527
+	elseif super > 20000 and super < 25000 then
+		return 0xFFBBF527
+	elseif super > 25000 then
+		return 0xFF5EF527
+	else
+		return 0xFFAAFFFF
+	end
 end
 
 local get_hitbox_range = function ( player, actParam, list )
@@ -121,13 +162,13 @@ local get_hitbox_range = function ( player, actParam, list )
 	end
 end
 
-	re.on_draw_ui(function()
-		if imgui.tree_node("Info Display") then
-			changed, display_player_info = imgui.checkbox("Display Battle Info", display_player_info)
-			changed, display_projectile_info = imgui.checkbox("Display Projectile Info", display_projectile_info)
-			imgui.tree_pop()
-		end
-	end)
+re.on_draw_ui(function()
+    if imgui.tree_node("Info Display") then
+        changed, display_player_info = imgui.checkbox("Display Battle Info", display_player_info)
+		changed, display_projectile_info = imgui.checkbox("Display Projectile Info", display_projectile_info)
+        imgui.tree_pop()
+    end
+end)
 
 re.on_frame(function()
     if sPlayer.prev_no_push_bit ~= 0 then
@@ -228,29 +269,29 @@ re.on_frame(function()
 		end
 
 		if display_player_info then
-
-			imgui.begin_window("Player Data", true, 0)
+			imgui.begin_window("Player Data", true, 64)
 			-- Vitals info
 			imgui.set_next_item_open(true, 2)
 			if imgui.tree_node("Vitals") then
 				imgui.multi_color("Distance:", p1.gap)
-				imgui.multi_color("P1 Drive:", p1.drive)
-				imgui.multi_color("P1 Super:", p1.super)
-				imgui.multi_color("P2 Drive:", p2.drive)
-				imgui.multi_color("P2 Super:", p2.super)
-				
+				imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "")
+				imgui.multi_color("P1 Drive:", p1.drive, get_drive_color(p1.drive))
+				imgui.multi_color("P1 Super:", p1.super, get_super_color(p2.super))
+				imgui.multi_color("P2 Pos:", string.format("%.1f", p2.posX) or "")
+				imgui.multi_color("P2 Drive:", p2.drive, get_drive_color(p2.drive))
+				imgui.multi_color("P2 Super:", p2.super, get_super_color(p2.super))
 				imgui.tree_pop()
 			end
 			-- Player 1 Info
 			if imgui.tree_node("P1") then
 				if imgui.tree_node("General Info") then
 					imgui.multi_color("Current HP:", p1.current_HP)
-					imgui.multi_color("Drive Cooldown:", p1.drive_cooldown)
-					imgui.multi_color("Drive Gauge:", p1.drive)
-					imgui.multi_color("Super Gauge:", p1.super)
-					imgui.multi_color("Buff Duration:", p1.buff)
 					imgui.multi_color("HP Cap:", p1.HP_cap)
 					imgui.multi_color("HP Regen Cooldown:", p1.HP_cooldown)
+					imgui.multi_color("Drive Gauge:", p1.drive)
+					imgui.multi_color("Drive Cooldown:", p1.drive_cooldown)
+					imgui.multi_color("Super Gauge:", p1.super)
+					imgui.multi_color("Buff Duration:", p1.buff)
 					imgui.multi_color("Debuff Duration:", p1.debuff_timer)
 
 					imgui.tree_pop()
