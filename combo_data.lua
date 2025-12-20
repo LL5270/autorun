@@ -1,5 +1,65 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
 
+local p1 = {}
+local p1_prev = {}
+local p2 = {}
+local p2_prev = {}
+
+local combo_start = {}
+combo_start.p1 = {}
+combo_start.p2 = {}
+
+local combo_finish = {}
+combo_finish.p1 = {}
+combo_finish.p2 = {}
+
+local combo_inputs = {}
+
+local combo_started = false
+local combo_finished = false
+
+local attacker
+
+local all_combos = {}
+local current_combo_index = 0
+local max_combos_to_save = 20
+
+local auto_save_combos = true
+local show_saved_combos = true
+
+local function setup_hook(type_name, method_name, pre_func, post_func)
+    local type_def = sdk.find_type_definition(type_name)
+    if type_def then
+        local method = type_def:get_method(method_name)
+        if method then
+            sdk.hook(method, pre_func, post_func)
+        end
+    end
+end
+
+setup_hook("app.training.TrainingManager", "BattleStart", nil, function(retval)
+    p1 = {}
+    p1_prev = {}
+    p2 = {}
+    p2_prev = {}
+
+    combo_start = {}
+    combo_start.p1 = {}
+    combo_start.p2 = {}
+
+    combo_finish = {}
+    combo_finish.p1 = {}
+    combo_finish.p2 = {}
+
+    combo_inputs = {}
+
+    combo_started = false
+    combo_finished = false
+
+    attacker = nil
+    return retval
+end)
+
 local gBattle = sdk.find_type_definition("gBattle")
 if not gBattle then
     log.info("Failed to find gBattle type definition")
@@ -48,33 +108,6 @@ if not sWork then
     return
 end
 local cWork = sWork.Global_work
-
-local p1 = {}
-local p1_prev = {}
-local p2 = {}
-local p2_prev = {}
-
-local combo_start = {}
-combo_start.p1 = {}
-combo_start.p2 = {}
-
-local combo_finish = {}
-combo_finish.p1 = {}
-combo_finish.p2 = {}
-
-local combo_inputs = {}
-
-local combo_started = false
-local combo_finished = false
-
-local attacker
-
-local all_combos = {}
-local current_combo_index = 0
-local max_combos_to_save = 20
-
-local auto_save_combos = true
-local show_saved_combos = true 
 
 local function safe_get_player_data(player_index)
     if not cPlayer or not cPlayer[player_index] then
@@ -385,8 +418,7 @@ re.on_frame(function()
             combo_started = false
         end
         
-        imgui.set_next_item_open(true, 2)
-        imgui.begin_window("Combo Data")
+        imgui.begin_window("Combo Data", true, 1|8)
         imgui.set_next_item_open(true, 2)
         if imgui.tree_node("Current Combo") then
             if combo_started or combo_finished then
@@ -557,7 +589,6 @@ re.on_frame(function()
         
         if show_saved_combos then
             imgui.spacing()
-            imgui.set_next_item_open(true, 2)
             if imgui.tree_node(string.format("Saved Combos (%d)", #all_combos)) then
                 imgui.spacing()
                 imgui.text("Settings:")
