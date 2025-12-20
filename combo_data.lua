@@ -453,7 +453,7 @@ re.on_frame(function()
                     if not combo_started then
                         imgui.table_set_column_index(1)
                         if attacker == 0 then
-                            imgui.text(tostring(combo_finish.p1.current_HP or ""))
+                            imgui.text(tostring(combo_finish.p2.current_HP or ""))
                         elseif attacker == 1 then
                             imgui.text(tostring(combo_finish.p1.current_HP or ""))
                         end
@@ -557,7 +557,7 @@ re.on_frame(function()
         
         if show_saved_combos then
             imgui.spacing()
-            
+            imgui.set_next_item_open(true, 2)
             if imgui.tree_node(string.format("Saved Combos (%d)", #all_combos)) then
                 imgui.spacing()
                 imgui.text("Settings:")
@@ -672,16 +672,30 @@ re.on_frame(function()
                                     popup_separator()
                                     
                                     imgui.table_next_row()
-                                    imgui.table_set_column_index(0)
-                                    imgui.text("Start P2 HP:")
-                                    imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.start.p2.current_HP or 0))
-                                    
-                                    imgui.table_next_row()
-                                    imgui.table_set_column_index(0)
-                                    imgui.text("Finish P2 HP:")
-                                    imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.finish.p2.current_HP or 0))
+                                    if combo.totals.attacker == 0 then
+                                        imgui.table_set_column_index(0)
+                                        imgui.text("Start P2 HP:")
+                                        imgui.table_set_column_index(1)
+                                        imgui.text(string.format("%.0f", combo.start.p2.current_HP or 0))
+
+                                        imgui.table_next_row()
+                                        imgui.table_set_column_index(0)
+                                        imgui.text("Finish P2 HP:")
+                                        imgui.table_set_column_index(1)
+                                        imgui.text(string.format("%.0f", combo.finish.p2.current_HP or 0))
+
+                                    elseif combo.totals.attacker == 1 then
+                                        imgui.table_set_column_index(0)
+                                        imgui.text("Start P1 HP:")
+                                        imgui.table_set_column_index(1)
+                                        imgui.text(string.format("%.0f", combo.start.p1.current_HP or 0))
+
+                                        imgui.table_next_row()
+                                        imgui.table_set_column_index(0)
+                                        imgui.text("Finish P1 HP:")
+                                        imgui.table_set_column_index(1)
+                                        imgui.text(string.format("%.0f", combo.finish.p1.current_HP or 0))
+                                    end
                                     
                                     imgui.table_next_row()
                                     imgui.table_set_column_index(0)
