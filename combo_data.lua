@@ -1,15 +1,13 @@
--- Original code from https://github.com/WistfulHopes/SF6Mods
-
-local TrainingManager
+local CHAR_ID_TABLE_PATH = "char_id_table.json"
+local char_id_table = json.load_file(CHAR_ID_TABLE_PATH) or {}
 local meter_datas
-
 local p1 = {}
 local p1_prev = {}
 local p2 = {}
 local p2_prev = {}
 
-local combo_inputs = {}
-
+local p1_combo_inputs = {}
+local p2_combo_inputs = {}
 local combo_start = {
     p1 = {},
     p2 = {}
@@ -18,63 +16,14 @@ local combo_finish = {
     p1 = {},
     p2 = {}
 }
-
 local combo_started = false
 local combo_finished = false
-
 local attacker
-
 local all_combos = {}
 local current_combo_index = 0
 local max_combos_to_save = 20
-
 local auto_save_combos = true
 local show_saved_combos = true
-
-local function setup_hook(type_name, method_name, pre_func, post_func)
-    local type_def = sdk.find_type_definition(type_name)
-    if type_def then
-        local method = type_def:get_method(method_name)
-        if method then
-            sdk.hook(method, pre_func, post_func)
-        end
-    end
-end
-
-setup_hook("app.training.TrainingManager", "BattleStart", nil, function(retval)
-    p1 = {}
-    p1_prev = {}
-    p2 = {}
-    p2_prev = {}
-
-    combo_start = {}
-    combo_start.p1 = {}
-    combo_start.p2 = {}
-
-    combo_finish = {}
-    combo_finish.p1 = {}
-    combo_finish.p2 = {}
-
-    combo_inputs = {}
-
-    combo_started = false
-    combo_finished = false
-
-    attacker = nil
-    return retval
-end)
-
-local gBattle = sdk.find_type_definition("gBattle")
-if not gBattle then
-    log.info("Failed to find gBattle type definition")
-    return
-end
-
-local TrainingManager = sdk.get_managed_singleton("app.training.TrainingManager")
-if not TrainingManager then
-    log.info("Failed to find TrainingManager type definition")
-    return
-end
 
 local function get_field(obj, field_name)
     if not obj then return nil end
@@ -83,27 +32,12 @@ local function get_field(obj, field_name)
     return field:get_data(nil)
 end
 
+local gBattle = sdk.find_type_definition("gBattle")
 local sPlayer = get_field(gBattle, "Player")
-    if not sPlayer then
-        log.info("Failed to get sPlayer")
-    return
-end
-
 local cPlayer = sPlayer.mcPlayer
 local BattleTeam = get_field(gBattle, "Team")
-if not BattleTeam then
-    log.info("Failed to get BattleTeam")
-    return
-end
-
 local cTeam = BattleTeam.mcTeam
-
-local sWork = get_field(gBattle, "Work")
-if not sWork then
-    log.info("Failed to get sWork")
-    return
-end
-local cWork = sWork.Global_work
+local TrainingManager = sdk.get_managed_singleton("app.training.TrainingManager")
 
 local function get_player_data(player_index)
     if not cPlayer or not cPlayer[player_index] then
@@ -147,10 +81,6 @@ local bitand = function(a, b)
         b = math.floor(b / 2)
     end
     return result
-end
-
-local abs = function(num)
-    return num < 0 and -num or num
 end
 
 local function save_combo()
@@ -250,7 +180,7 @@ local function color(val)
 end
 
 local function process_player_info()
-    local meter_datas = TrainingManager._tCommon.SnapShotDatas[0]._DisplayData.FrameMeterSSData.MeterDatas
+    meter_datas = TrainingManager._tCommon.SnapShotDatas[0]._DisplayData.FrameMeterSSData.MeterDatas
 
     local p1_data = {}
     local p2_data = {}
@@ -262,15 +192,20 @@ local function process_player_info()
     local meter2 = meter_datas[1]
     local p1_engine = nil
     local p2_engine = nil
-    local p1_hit_dt = nil
-    local p2_hit_dt = nil
+    local p1_char_id = nil
+    local p2_char_id = nil
 
     if player1.mpActParam and player1.mpActParam.ActionPart then
+        p1_char_id = player1.mpActParam.ActionPart._CharaID
         p1_engine = player1.mpActParam.ActionPart._Engine
     end
     if player2.mpActParam and player2.mpActParam.ActionPart then
+        p2_char_id = player2.mpActParam.ActionPart._CharaID
         p2_engine = player2.mpActParam.ActionPart._Engine
     end
+
+    local p1_hit_dt = cPlayer[1].pDmgHitDT
+    local p2_hit_dt = cPlayer[0].pDmgHitDT
     
     if p1_engine then
         p1_data.action_id = p1_engine:get_ActionID()
@@ -289,9 +224,6 @@ local function process_player_info()
 		p2_data.main_frame = p2_engine.mParam.action.ActionFrame.MainFrame
 		p2_data.follow_frame = p2_engine.mParam.action.ActionFrame.FollowFrame        
     end
-    
-    p1_hit_dt = player2.pDmgHitDT
-    p2_hit_dt = player1.pDmgHitDT
 
     p1.stun_frame = meter1.StunFrame
     p1.stun_frame_str = string.gsub(p1.stun_frame, "F", "")
@@ -301,15 +233,6 @@ local function process_player_info()
     p1_data.hp_current = player1.vital_new or 0
     p1_data.hp_cooldown = player1.healing_wait or 0
     p1_data.dir = bitand(player1.BitValue or 0, 128) == 128
-    p1_data.curr_hitstop = player1.hit_stop or 0
-    p1_data.max_hitstop = player1.hit_stop_org or 0
-    p1_data.curr_hitstun = player1.damage_time or 0
-    p1_data.max_hitstun = player1.damage_info and player1.damage_info.time or 0
-    p1_data.curr_blockstun = player1.guard_time or 0
-    p1_data.stance = player1.pose_st or 0
-    p1_data.throw_invuln = player1.catch_muteki or 0
-    p1_data.full_invuln = player1.muteki_time or 0
-    p1_data.juggle = player1.combo_dm_air or 0
     p1_data.burnout = player1.incapacitated or false
     p1_data.drive = player1.focus_new or 0
     -- Adjusted Drive to account for Burnout
@@ -325,17 +248,18 @@ local function process_player_info()
     p1_data.gap = cPlayer[0].vs_distance.v / 65536.0
     if player1.pos and player1.pos.x then
         p1_data.pos_x = player1.pos.x.v / 65536.0
-        p1_data.posY = player1.pos.y.v / 65536.0
+        p1_data.pos_y = player1.pos.y.v / 65536.0
     else
         p1_data.pos_x = 0
-        p1_data.posY = 0
+        p1_data.pos_y = 0
     end
     p1_data.combo_count = cPlayer[1].combo_scale.count
     p1_data.combo_scale_now = cPlayer[1].combo_scale.now
     p1_data.combo_scale_start = cPlayer[1].combo_scale.start
     p1_data.combo_scale_buff = cPlayer[1].combo_scale.buff
     p1_data.advantage = p1.stun_frame_int
-    p1_data.character = player1.character or 0 -- TODO
+    p1_data.char_id = p1_char_id or 0
+    p1_data.char_name = char_id_table.characters[tostring(p1_data.char_id or 0)]
 
     p2.stun_frame = meter2.StunFrame
     p2.stun_frame_str = string.gsub(p2.stun_frame, "F", "")
@@ -345,15 +269,6 @@ local function process_player_info()
     p2_data.hp_current = player2.vital_new or 0
     p2_data.hp_cooldown = player2.healing_wait or 0
     p2_data.dir = bitand(player2.BitValue or 0, 128) == 128
-    p2_data.curr_hitstop = player2.hit_stop or 0
-    p2_data.max_hitstop = player2.hit_stop_org or 0
-    p2_data.curr_hitstun = player2.damage_time or 0
-    p2_data.max_hitstun = player2.damage_info and player2.damage_info.time or 0
-    p2_data.curr_blockstun = player2.guard_time or 0
-    p2_data.stance = player2.pose_st or 0
-    p2_data.throw_invuln = player2.catch_muteki or 0
-    p2_data.full_invuln = player2.muteki_time or 0
-    p2_data.juggle = player2.combo_dm_air or 0
     p2_data.burnout = player1.incapacitated or false
     p2_data.drive = player2.focus_new or 0    
     if p2_data.burnout then
@@ -368,26 +283,27 @@ local function process_player_info()
     p2_data.gap = cPlayer[1].vs_distance.v / 65536.0
     if player2.pos and player2.pos.x then
         p2_data.pos_x = player2.pos.x.v / 65536.0
-        p2_data.posY = player2.pos.y.v / 65536.0
+        p2_data.pos_y = player2.pos.y.v / 65536.0
     else
         p2_data.pos_x = 0
-        p2_data.posY = 0
+        p2_data.pos_y = 0
     end
     p2_data.combo_count = cPlayer[0].combo_scale.count
     p2_data.combo_scale_now = cPlayer[0].combo_scale.now
     p2_data.combo_scale_start = cPlayer[0].combo_scale.start
     p2_data.combo_scale_buff = cPlayer[0].combo_scale.buff
     p2_data.advantage = p2.stun_frame_int
-    p2_data.character = player2.character or 0 -- TODO
+    p2_data.char_id = p2_char_id or 0
+    p2_data.char_name = char_id_table.characters[tostring(p2_data.char_id or 0)]
     
-    return p1_data, p1_hit_dt, p2_data, p2_hit_dt
+    return p1_data, p2_data
 end
 
 re.on_frame(function()
     if not sPlayer then return end
     if sPlayer.prev_no_push_bit ~= 0 then
         p1_prev, p2_prev = deep_copy(p1), deep_copy(p2)
-        p1, p1_hit_dt, p2, p2_hit_dt = process_player_info()
+        p1, p2 = process_player_info()
         
         if check_combo_started() then
             p1.attacker = attacker
@@ -411,29 +327,25 @@ re.on_frame(function()
                 end
             end                
 
-            combo_inputs[#combo_inputs] = p1.action_id
-
             combo_started = true
             combo_finished = false
         end
 
         if check_combo_in_progress() then
-            if attacker == 0 then
-                if combo_inputs[#combo_inputs] ~= p1.action_id then
-                    combo_inputs[#combo_inputs] = p1.action_id
-
-                end
-            elseif attacker == 1 then
-                if combo_inputs[#combo_inputs] ~= p2.action_id then
-                    combo_inputs[#combo_inputs] = p2.action_id
-                end
+            if p1_combo_inputs[#p1_combo_inputs] ~= p1.action_id then
+                table.insert(p1_combo_inputs, p1.action_id)
+            end
+            if p2_combo_inputs[#p2_combo_inputs] ~= p2.action_id then
+                table.insert(p2_combo_inputs, p2.action_id)
             end
         end
         
         if check_combo_finished() then
             if (attacker == 0 and p1.advantage ~= 0) or (attacker == 1 and p2.advantage ~= 0) then
                 combo_finish.p1 = deep_copy(p1)
+                combo_finish.p1.inputs = p1_combo_inputs
                 combo_finish.p2 = deep_copy(p2)
+                combo_finish.p2.inputs = p2_combo_inputs
                 combo_finished = true
 
                 if auto_save_combos then
@@ -498,6 +410,9 @@ re.on_frame(function()
 
                     imgui.table_set_column_index(5)
                     imgui.text(tostring(combo_start.p2.super or ""))
+
+                    imgui.table_set_column_index(6)
+                    imgui.text(tostring(combo_start.p1.character or ""))
 
                     imgui.table_set_column_index(7)
                     if combo_start.p1.pos_x then
@@ -784,6 +699,20 @@ re.on_frame(function()
                                     imgui.table_set_column_index(1)
                                     imgui.text(combo.timestamp or "")
 
+                                    imgui.table_next_row()
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("P1 Character:")
+
+                                    imgui.table_set_column_index(1)
+                                    imgui.text(combo.finish.p1.char_id .. " / " .. combo.finish.p1.char_name)
+
+                                    imgui.table_next_row()
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("P2 Character:")
+
+                                    imgui.table_set_column_index(1)
+                                    imgui.text(combo.finish.p2.char_id .. " / " .. combo.finish.p2.char_name)
+
                                     popup_separator()
                                     
                                     imgui.table_next_row()
@@ -1018,7 +947,7 @@ re.on_frame(function()
                                     elseif combo.totals.attacker == 1 then
                                         imgui.text(combo.totals.p2_advantage)
                                     end
-                                    
+
                                     imgui.table_next_row()
                                     
                                     imgui.table_set_column_index(0)
@@ -1026,6 +955,32 @@ re.on_frame(function()
 
                                     imgui.table_set_column_index(1)
                                     imgui.text(combo.totals.gap)
+
+                                    popup_separator()
+
+                                    imgui.table_next_row()
+
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("P1 Actions:")
+
+                                    imgui.table_set_column_index(1)
+                                    local p1_inputs = ""
+                                    for k, v in pairs(combo.finish.p1.inputs) do
+                                        p1_inputs = tostring(p1_inputs) .. v .. " "
+                                    end
+                                    imgui.text(p1_inputs)
+
+                                    imgui.table_next_row()
+
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("P2 Actions:")
+
+                                    imgui.table_set_column_index(1)
+                                    local p2_inputs = ""
+                                    for k, v in pairs(combo.finish.p2.inputs) do
+                                        p2_inputs = tostring(p2_inputs) .. v .. " "
+                                    end
+                                    imgui.text(p2_inputs)
 
                                     imgui.end_table()
                                 end
