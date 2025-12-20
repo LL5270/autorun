@@ -25,6 +25,9 @@ p1.relative_range = 0
 p2.absolute_range = 0
 p2.relative_range = 0
 
+local left_wall_dr_splat_pos = -585.2
+local right_wall_dr_splat_pos = 585.2
+
 local reversePairs = function ( aTable )
 	local keys = {}
 
@@ -348,10 +351,18 @@ re.on_frame(function()
 			if imgui.tree_node("Vitals") then
 				imgui.multi_color("Gap:", p1.gap)
 				imgui.multi_color("Advantage:", p1.advantage)
-				imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "")
+				if (p1.dir and p1.posX <= left_wall_dr_splat_pos) or (not p1.dir and p1.posX >= right_wall_dr_splat_pos) then
+					imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "", 0XFFFFEA00)
+				else
+					imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "")
+				end
 				imgui.multi_color("P1 Drive:", p1.drive_adjusted, get_drive_color(p1.drive_adjusted))
 				imgui.multi_color("P1 Super:", p1.super, get_super_color(p2.super))
-				imgui.multi_color("P2 Pos:", string.format("%.1f", p2.posX) or "")
+				if (p2.dir and p2.posX <= left_wall_dr_splat_pos) or (not p2.dir and p2.posX >= right_wall_dr_splat_pos) then
+					imgui.multi_color("P2 Pos:", string.format("%.1f", p2.posX) or "", 0XFFFFEA00)
+				else
+					imgui.multi_color("P2 Pos:", string.format("%.1f", p2.posX) or "")
+				end
 				imgui.multi_color("P2 Drive:", p2.drive_adjusted, get_drive_color(p2.drive_adjusted))
 				imgui.multi_color("P2 Super:", p2.super, get_super_color(p2.super))
 				imgui.tree_pop()
