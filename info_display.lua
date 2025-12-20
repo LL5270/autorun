@@ -83,17 +83,29 @@ function imgui.multi_color(first_text, second_text, second_text_color)
 end
 
 local function get_drive_color(drive)
-	if drive > 0 and drive < 10000 then
+	if drive >= -60000 and drive < -50001 then
+		return 0xFFFF0073
+	elseif drive >= -50000 and drive < -40001 then
+		return 0XFFF7318B
+	elseif drive >= -40000 and drive < -30001 then
+		return 0XFFF74A99
+	elseif drive >= -30000 and drive < -20001 then
+		return 0XFFFC68AB
+	elseif drive >= -20000 and drive < -10001 then
+		return 0XFFF786B9
+	elseif drive >= - 10000 and drive < -1 then
+		return 0XFFFCAED2
+	elseif drive >= 0 and drive < 9999 then
 		return 0xFFF55727
-	elseif drive > 10000 and drive < 2000 then
+	elseif drive >= 10000 and drive < 19999 then
 		return 0xFFF5A927
-	elseif drive > 20000 and drive < 30000 then
+	elseif drive >= 20000 and drive < 29999 then
 		return 0xFFF5DD27
-	elseif drive > 30000 and drive < 40000 then
+	elseif drive >= 30000 and drive < 39999 then
 		return 0xFFDDF527
-	elseif drive > 40000 and drive < 50000 then
+	elseif drive >= 40000 and drive < 49999 then
 		return 0xFFBBF527
-	elseif drive > 50000 then
+	elseif drive >= 50000 then
 		return 0xFF5EF527
 	else
 		return 0xFFAAFFFF
@@ -101,17 +113,17 @@ local function get_drive_color(drive)
 end
 
 local function get_super_color(super)
-	if super > 0 and super < 5000 then
+	if super >= 0 and super < 4999 then
 		return 0xFFF55727
-	elseif super > 5000 and super < 10000 then
+	elseif super >= 5000 and super < 9999 then
 		return 0xFFF5A927
-	elseif super > 10000 and super < 15000 then
+	elseif super >= 10000 and super < 14999 then
 		return 0xFFF5DD27
-	elseif super > 15000 and super < 20000 then
+	elseif super >= 15000 and super < 19999 then
 		return 0xFFDDF527
-	elseif super > 20000 and super < 25000 then
+	elseif super >= 20000 and super < 24999 then
 		return 0xFFBBF527
-	elseif super > 25000 then
+	elseif super >= 25000 then
 		return 0xFF5EF527
 	else
 		return 0xFFAAFFFF
@@ -203,6 +215,7 @@ re.on_frame(function()
 		p1.throw_invuln = cPlayer[0].catch_muteki
 		p1.full_invuln = cPlayer[0].muteki_time
         p1.juggle = cPlayer[0].combo_dm_air
+		p1.burnout =cPlayer[0].incapacitated or false
         p1.drive = cPlayer[0].focus_new
         p1.drive_cooldown = cPlayer[0].focus_wait
         p1.super = cTeam[0].mSuperGauge
@@ -218,6 +231,11 @@ re.on_frame(function()
 		p1.pushback = cPlayer[0].vector_zuri.speed.v / 65536.0
 		p1.self_pushback = cPlayer[0].vs_vec_zuri.zuri.speed.v / 65536.0
 		p1.gap = cPlayer[0].vs_distance.v / 65536.0
+		p1.combo_attack_count = cPlayer[1].combo_scale.count
+		p1.combo_hit_count = cPlayer[1].combo_dm_cnt
+		p1.combo_scale_now = cPlayer[1].combo_scale.now
+		p1.combo_scale_start = cPlayer[1].combo_scale.start
+		p1.combo_scale_buff = cPlayer[1].combo_scale.buff
 		
 		-- P2 Data
 		p2.HP_cap = cPlayer[1].heal_new
@@ -233,6 +251,7 @@ re.on_frame(function()
 		p2.throw_invuln = cPlayer[1].catch_muteki
 		p2.full_invuln = cPlayer[1].muteki_time
         p2.juggle = cPlayer[1].combo_dm_air
+		p2.burnout =cPlayer[1].incapacitated or false
         p2.drive = cPlayer[1].focus_new
         p2.drive_cooldown = cPlayer[1].focus_wait
         p2.super = cTeam[1].mSuperGauge
@@ -248,6 +267,24 @@ re.on_frame(function()
 		p2.pushback = cPlayer[1].vector_zuri.speed.v / 65536.0
 		p2.self_pushback = cPlayer[1].vs_vec_zuri.zuri.speed.v / 65536.0
 		p2.gap = cPlayer[1].vs_distance.v / 65536.0
+		p2.combo_attack_count = cPlayer[0].combo_scale.count
+		p2.combo_hit_count = cPlayer[0].combo_dm_cnt
+		p2.combo_scale_now = cPlayer[0].combo_scale.now
+		p2.combo_scale_start = cPlayer[0].combo_scale.start
+		p2.combo_scale_buff = cPlayer[0].combo_scale.buff
+
+		-- Adjusted Drive to account for Burnout
+		if p1.burnout then
+			p1.drive_adjusted = p1.drive - 60000
+		else
+			p1.drive_adjusted = p1.drive
+		end
+
+		if p2.burnout then
+			p2.drive_adjusted = p2.drive - 60000
+		else
+			p2.drive_adjusted = p2.drive
+		end
 		
 		-- Max blockstun tracker
 		if p1.max_blockstun == nil then
@@ -275,10 +312,10 @@ re.on_frame(function()
 			if imgui.tree_node("Vitals") then
 				imgui.multi_color("Distance:", p1.gap)
 				imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "")
-				imgui.multi_color("P1 Drive:", p1.drive, get_drive_color(p1.drive))
+				imgui.multi_color("P1 Drive:", p1.drive_adjusted, get_drive_color(p1.drive_adjusted))
 				imgui.multi_color("P1 Super:", p1.super, get_super_color(p2.super))
 				imgui.multi_color("P2 Pos:", string.format("%.1f", p2.posX) or "")
-				imgui.multi_color("P2 Drive:", p2.drive, get_drive_color(p2.drive))
+				imgui.multi_color("P2 Drive:", p2.drive_adjusted, get_drive_color(p2.drive_adjusted))
 				imgui.multi_color("P2 Super:", p2.super, get_super_color(p2.super))
 				imgui.tree_pop()
 			end
@@ -288,7 +325,8 @@ re.on_frame(function()
 					imgui.multi_color("Current HP:", p1.current_HP)
 					imgui.multi_color("HP Cap:", p1.HP_cap)
 					imgui.multi_color("HP Regen Cooldown:", p1.HP_cooldown)
-					imgui.multi_color("Drive Gauge:", p1.drive)
+					imgui.multi_color("Burnout:", tostring(p1.burnout))
+					imgui.multi_color("Drive Gauge:", p1.drive_adjusted)
 					imgui.multi_color("Drive Cooldown:", p1.drive_cooldown)
 					imgui.multi_color("Super Gauge:", p1.super)
 					imgui.multi_color("Buff Duration:", p1.buff)
@@ -320,23 +358,42 @@ re.on_frame(function()
 					else
 						imgui.multi_color("Stance:", "Jumping")
 					end
-					imgui.multi_color("Position X:", p1.posX)
-					imgui.multi_color("Position Y:", p1.posY)
-					imgui.multi_color("Speed X:", p1.spdX)
-					imgui.multi_color("Speed Y:", p1.spdY)
-					imgui.multi_color("Acceleration X:", p1.aclX)
-					imgui.multi_color("Acceleration Y:", p1.aclY)
-					imgui.multi_color("Pushback:", p1.pushback)
-					imgui.multi_color("Self Pushback:", p1.self_pushback)
+					imgui.multi_color("Position X:", string.format("%.2f", p1.posX))
+					imgui.multi_color("Position Y:", string.format("%.2f", p1.posY))
+					imgui.multi_color("Speed X:", string.format("%.2f", p1.spdX))
+					imgui.multi_color("Speed Y:", string.format("%.2f", p1.spdY))
+					imgui.multi_color("Acceleration X:", string.format("%.2f", p1.aclX))
+					imgui.multi_color("Acceleration Y:", string.format("%.2f", p1.aclY))
+					imgui.multi_color("Pushback:", string.format("%.2f", p1.pushback))
+					imgui.multi_color("Self Pushback:", string.format("%.2f", p1.self_pushback))
 					imgui.multi_color("Distance Between Players:", p1.gap)
 					
 					imgui.tree_pop()
 				end
 				if imgui.tree_node("Attack Info") then
 					get_hitbox_range(cPlayer[0], cPlayer[0].mpActParam, p1)
-					imgui.multi_color("Absolute Range:", p1.absolute_range)
-					imgui.multi_color("Relative Range:", p1.relative_range)
+					imgui.multi_color("Absolute Range:", string.format("%.2f", p1.absolute_range))
+					imgui.multi_color("Relative Range:", string.format("%.2f", p1.relative_range))
 					imgui.multi_color("Juggle Counter:", p2.juggle)
+					imgui.multi_color("Combo Hit Count:", p1.combo_hit_count)
+					imgui.multi_color("Combo Attack Count:", p1.combo_attack_count)
+					imgui.multi_color("Combo Starter Scaling:", 100 - p1.combo_scale_start .. "%")
+					imgui.multi_color("Current Hit Scaling:", p1.combo_scale_now .. "%")
+
+					local p1_next_hit_scaling_calc = 100
+					if p1.combo_attack_count == 1 then
+						if p1.combo_scale_buff == 10 then
+							p1_next_hit_scaling_calc = (100 - p1.combo_scale_start)
+						else
+							p1_next_hit_scaling_calc = (100 - p1.combo_scale_start) - p1.combo_scale_buff
+						end
+					elseif p1.combo_attack_count > 1 then
+						p1_next_hit_scaling_calc = (100 - p1.combo_scale_start) - p1.combo_scale_buff
+					else
+						p1_next_hit_scaling_calc = 100 - p1.combo_scale_buff
+					end
+					imgui.multi_color("Next Hit Scaling:", p1_next_hit_scaling_calc .. "%")
+
 					if imgui.tree_node("Latest Attack Info") then
 						if p1HitDT == nil then
 							imgui.text_colored("No hit yet", 0xFFAAFFFF)
@@ -383,7 +440,8 @@ re.on_frame(function()
 					imgui.multi_color("Current HP:", p2.current_HP)
 					imgui.multi_color("HP Cap:", p2.HP_cap)
 					imgui.multi_color("HP Regen Cooldown:", p2.HP_cooldown)
-					imgui.multi_color("Drive Gauge:", p2.drive)
+					imgui.multi_color("Burnout:", tostring(p2.burnout))
+					imgui.multi_color("Drive Gauge:", p2.drive_adjusted)
 					imgui.multi_color("Drive Cooldown:", p2.drive_cooldown)
 					imgui.multi_color("Super Gauge:", p2.super)
 					imgui.multi_color("Buff Duration:", p2.buff)
@@ -415,23 +473,43 @@ re.on_frame(function()
 					else
 						imgui.multi_color("Stance:", "Jumping")
 					end
-					imgui.multi_color("Position X:", p2.posX)
-					imgui.multi_color("Position Y:", p2.posY)
-					imgui.multi_color("Speed X:", p2.spdX)
-					imgui.multi_color("Speed Y:", p2.spdY)
-					imgui.multi_color("Acceleration X:", p2.aclX)
-					imgui.multi_color("Acceleration Y:", p2.aclY)
-					imgui.multi_color("Pushback:", p2.pushback)
-					imgui.multi_color("Self Pushback:", p2.self_pushback)
+					imgui.multi_color("Position X:", string.format("%.2f", p2.posX))
+					imgui.multi_color("Position Y:", string.format("%.2f", p2.posY))
+					imgui.multi_color("Speed X:", string.format("%.2f", p2.spdX))
+					imgui.multi_color("Speed Y:", string.format("%.2f", p2.spdY))
+					imgui.multi_color("Acceleration X:", string.format("%.2f", p2.aclX))
+					imgui.multi_color("Acceleration Y:", string.format("%.2f", p2.aclY))
+					imgui.multi_color("Pushback:", string.format("%.2f", p2.pushback))
+					imgui.multi_color("Self Pushback:", string.format("%.2f", p2.self_pushback))
 					imgui.multi_color("Distance Between Players:", p2.gap)
 					
 					imgui.tree_pop()
 				end
 				if imgui.tree_node("Attack Info") then
 					get_hitbox_range(cPlayer[1], cPlayer[1].mpActParam, p2)
-					imgui.multi_color("Absolute Range:", p2.absolute_range)
-					imgui.multi_color("Relative Range:", p2.relative_range)
+					imgui.multi_color("Absolute Range:", string.format("%.2f", p2.absolute_range))
+					imgui.multi_color("Relative Range:", string.format("%.2f", p2.relative_range))
 					imgui.multi_color("Juggle Counter:", p1.juggle)
+					
+					imgui.multi_color("Combo Hit Count:", p2.combo_hit_count)
+					imgui.multi_color("Combo Attack Count:", p2.combo_attack_count)
+					imgui.multi_color("Combo Starter Scaling:", 100 - p2.combo_scale_start .. "%")
+					imgui.multi_color("Current Hit Scaling:", p2.combo_scale_now .. "%")
+
+					local p2_next_hit_scaling_calc = 100
+					if p2.combo_attack_count == 1 then
+						if p2.combo_scale_buff == 10 then
+							p2_next_hit_scaling_calc = (100 - p2.combo_scale_start)
+						else
+							p2_next_hit_scaling_calc = (100 - p2.combo_scale_start) - p2.combo_scale_buff
+						end
+					elseif p2.combo_attack_count > 1 then
+						p2_next_hit_scaling_calc = (100 - p2.combo_scale_start) - p2.combo_scale_buff
+					else
+						p2_next_hit_scaling_calc = 100 - p2.combo_scale_buff
+					end
+					imgui.multi_color("Next Hit Scaling:", p2_next_hit_scaling_calc .. "%")
+
 					if imgui.tree_node("Latest Attack Info") then
 						if p2HitDT == nil then
 							imgui.text_colored("No hit yet", 0xFFAAFFFF)
