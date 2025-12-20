@@ -5,6 +5,7 @@ local sPlayer = gBattle:get_field("Player"):get_data(nil)
 local cPlayer = sPlayer.mcPlayer
 local BattleTeam = gBattle:get_field("Team"):get_data(nil)
 local cTeam = BattleTeam.mcTeam
+local training_manager = sdk.get_managed_singleton("app.training.TrainingManager")
 -- Charge Info
 local storageData = gBattle:get_field("Command"):get_data(nil).StorageData
 local p1ChargeInfo = storageData.UserEngines[0].m_charge_infos
@@ -203,6 +204,27 @@ re.on_frame(function()
 		-- P2 Startup/Active/Recovery Frame
 		p2.mMainFrame = p2Engine.mParam.action.ActionFrame.MainFrame
 		p2.mFollowFrame = p2Engine.mParam.action.ActionFrame.FollowFrame
+		-- KD Info from Frame Meter
+		local display_data = training_manager._tCommon.SnapShotDatas[0]._DisplayData
+		local fm_current_frame = display_data.FMCurrentFrame
+		local fm_stop_frame = display_data.FMStopFrame
+		p1.whole_frame = display_data.FrameMeterSSData.MeterDatas[0].WholeFrame
+		p1.meaty_frame = display_data.FrameMeterSSData.MeterDatas[0].MeatyFrame
+		p1.apper_frame = display_data.FrameMeterSSData.MeterDatas[0].ApperFrame
+		p1.apper_frame_str = string.gsub(p1.apper_frame, "F", "")
+		p1.apper_frame_int = tonumber(p1.apper_frame_str) or 0
+		p1.stun_frame = display_data.FrameMeterSSData.MeterDatas[0].StunFrame
+		p1.stun_frame_str = string.gsub(p1.stun_frame, "F", "")
+		p1.stun_frame_int = tonumber(p1.stun_frame_str) or 0
+		p2.whole_frame = display_data.FrameMeterSSData.MeterDatas[1].WholeFrame
+		p2.meaty_frame = display_data.FrameMeterSSData.MeterDatas[1].MeatyFrame
+		p2.apper_frame = display_data.FrameMeterSSData.MeterDatas[1].ApperFrame
+		p2.apper_frame_str = string.gsub(p2.apper_frame, "F", "")
+		p2.apper_frame_int = tonumber(p2.apper_frame_str) or 0
+		p2.stun_frame = display_data.FrameMeterSSData.MeterDatas[1].StunFrame
+		p2.stun_frame_str = string.gsub(p2.stun_frame, "F", "")
+		p2.stun_frame_int = tonumber(p2.stun_frame_str) or 0
+		
 		-- HitDT
 		local p1HitDT = cPlayer[1].pDmgHitDT
 		local p2HitDT = cPlayer[0].pDmgHitDT
@@ -222,10 +244,11 @@ re.on_frame(function()
 		p1.full_invuln = cPlayer[0].muteki_time
         p1.juggle = cPlayer[0].combo_dm_air
 		p1.burnout =cPlayer[0].incapacitated or false
-		p1.startup_frames = p1.mMainFrame + 1 -- TODO Make reliable
+		p1.startup_frames = p1.apper_frame_int
 		p1.active_frames = p1.mFollowFrame - p1.mMainFrame -- TODO Make reliable
 		p1.recovery_frames = read_sfix(p1.mMarginFrame) - p1.mFollowFrame -- TODO Make reliable
 		p1.total_frames = read_sfix(p1.mMarginFrame) -- TODO Make reliable
+		p1.advantage = p1.stun_frame_int
         p1.drive = cPlayer[0].focus_new
         p1.drive_cooldown = cPlayer[0].focus_wait
         p1.super = cTeam[0].mSuperGauge
@@ -262,10 +285,11 @@ re.on_frame(function()
 		p2.full_invuln = cPlayer[1].muteki_time
         p2.juggle = cPlayer[1].combo_dm_air
 		p2.burnout =cPlayer[1].incapacitated or false
-		p2.startup_frames = p2.mMainFrame + 1 -- TODO Make reliable
+		p1.startup_frames = p1.apper_frame_int
 		p2.active_frames = p2.mFollowFrame - p2.mMainFrame -- TODO Make reliable
 		p2.recovery_frames = read_sfix(p2.mMarginFrame) - p2.mFollowFrame -- TODO Make reliable
 		p2.total_frames = read_sfix(p2.mMarginFrame) -- TODO Make reliable
+		p1.advantage = p1.stun_frame_int
         p2.drive = cPlayer[1].focus_new
         p2.drive_cooldown = cPlayer[1].focus_wait
         p2.super = cTeam[1].mSuperGauge
@@ -320,11 +344,12 @@ re.on_frame(function()
 		end
 
 		if display_player_info then
-			imgui.begin_window("Player Data", true, 64)
+			imgui.begin_window("Player Data", true, 1|8)
 			-- Vitals info
 			imgui.set_next_item_open(true, 2)
 			if imgui.tree_node("Vitals") then
-				imgui.multi_color("Distance:", p1.gap)
+				imgui.multi_color("Gap:", p1.gap)
+				imgui.multi_color("Advantage:", p1.advantage)
 				imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "")
 				imgui.multi_color("P1 Drive:", p1.drive_adjusted, get_drive_color(p1.drive_adjusted))
 				imgui.multi_color("P1 Super:", p1.super, get_super_color(p2.super))
@@ -390,6 +415,7 @@ re.on_frame(function()
 					imgui.multi_color("Active Frames:", p1.active_frames)
 					imgui.multi_color("Recovery Frames:", string.format("%.0f", p1.recovery_frames))
 					imgui.multi_color("Total Frames:", string.format("%.0f", p1.total_frames))
+					imgui.multi_color("Advantage:", p1.advantage)
 					imgui.multi_color("Absolute Range:", string.format("%.2f", p1.absolute_range))
 					imgui.multi_color("Relative Range:", string.format("%.2f", p1.relative_range))
 					imgui.multi_color("Juggle Counter:", p2.juggle)
