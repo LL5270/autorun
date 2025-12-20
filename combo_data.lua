@@ -1,19 +1,23 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
 
+local TrainingManager
+local meter_datas
+
 local p1 = {}
 local p1_prev = {}
 local p2 = {}
 local p2_prev = {}
 
-local combo_start = {}
-combo_start.p1 = {}
-combo_start.p2 = {}
-
-local combo_finish = {}
-combo_finish.p1 = {}
-combo_finish.p2 = {}
-
 local combo_inputs = {}
+
+local combo_start = {
+    p1 = {},
+    p2 = {}
+}
+local combo_finish = {
+    p1 = {},
+    p2 = {}
+}
 
 local combo_started = false
 local combo_finished = false
@@ -66,21 +70,27 @@ if not gBattle then
     return
 end
 
-local function get_safe_field(obj, field_name)
+local TrainingManager = sdk.get_managed_singleton("app.training.TrainingManager")
+if not TrainingManager then
+    log.info("Failed to find TrainingManager type definition")
+    return
+end
+
+local function get_field(obj, field_name)
     if not obj then return nil end
     local field = obj:get_field(field_name)
     if not field then return nil end
     return field:get_data(nil)
 end
 
-local sPlayer = get_safe_field(gBattle, "Player")
+local sPlayer = get_field(gBattle, "Player")
     if not sPlayer then
         log.info("Failed to get sPlayer")
     return
 end
 
 local cPlayer = sPlayer.mcPlayer
-local BattleTeam = get_safe_field(gBattle, "Team")
+local BattleTeam = get_field(gBattle, "Team")
 if not BattleTeam then
     log.info("Failed to get BattleTeam")
     return
@@ -88,39 +98,32 @@ end
 
 local cTeam = BattleTeam.mcTeam
 
-local storageData = get_safe_field(gBattle, "Command")
-if not storageData or not storageData.StorageData then
-    log.info("Failed to get storageData")
-    return
-end
-storageData = storageData.StorageData
-
-local p1ChargeInfo = nil
-local p2ChargeInfo = nil
-if storageData.UserEngines and #storageData.UserEngines >= 2 then
-    p1ChargeInfo = storageData.UserEngines[0] and storageData.UserEngines[0].m_charge_infos
-    p2ChargeInfo = storageData.UserEngines[1] and storageData.UserEngines[1].m_charge_infos
-end
-
-local sWork = get_safe_field(gBattle, "Work")
+local sWork = get_field(gBattle, "Work")
 if not sWork then
     log.info("Failed to get sWork")
     return
 end
 local cWork = sWork.Global_work
 
-local function safe_get_player_data(player_index)
+local function get_player_data(player_index)
     if not cPlayer or not cPlayer[player_index] then
         return {}
     end
     return cPlayer[player_index]
 end
 
-local function safe_get_team_data(team_index)
+local function get_team_data(team_index)
     if not cTeam or not cTeam[team_index] then
         return {}
     end
     return cTeam[team_index]
+end
+
+local function get_meter_data(player_index)
+    if not meter_datas or not meter_datas[player_index] then
+        return {}
+    end
+    return meter_datas[player_index]
 end
 
 local function deep_copy(original)
@@ -154,9 +157,9 @@ local function save_combo()
     if combo_finished and combo_start.p1 and combo_start.p2 and combo_finish.p1 and combo_finish.p2 then
         local total_damage = 0
         if attacker == 0 then
-            total_damage = (combo_start.p2.current_HP or 0) - (combo_finish.p2.current_HP or 0)
+            total_damage = (combo_start.p2.hp_current or 0) - (combo_finish.p2.hp_current or 0)
         elseif attacker == 1 then
-            total_damage = (combo_start.p1.current_HP or 0) - (combo_finish.p1.current_HP or 0)
+            total_damage = (combo_start.p1.hp_current or 0) - (combo_finish.p1.hp_current or 0)
         end
         local combo_data = {
             index = current_combo_index,
@@ -171,12 +174,16 @@ local function save_combo()
             totals = {
                 attacker = attacker,
                 damage = total_damage,
-                p1_drive_gain = (combo_finish.p1.drive_adjusted or 0) - (combo_start.p1.drive_adjusted or 0),
-                p1_super_gain = (combo_finish.p1.super or 0) - (combo_start.p1.super or 0),
-                p2_drive_gain = (combo_finish.p2.drive_adjusted or 0) - (combo_start.p2.drive_adjusted or 0),
-                p2_super_gain = (combo_finish.p2.super or 0) - (combo_start.p2.super or 0),
-                p1_position_change = (combo_finish.p1.posX or 0) - (combo_start.p1.posX or 0),
-                p2_position_change = (combo_finish.p2.posX or 0 ) - (combo_start.p2.posX or 0),
+                p1_dir = combo_finish.p1.dir,
+                p2_dir = combo_finish.p2.dir,
+                p1_advantage = combo_finish.p1.advantage,
+                p2_advantage = combo_finish.p2.advantage,
+                p1_drive = (combo_finish.p1.drive_adjusted or 0) - (combo_start.p1.drive_adjusted or 0),
+                p1_super = (combo_finish.p1.super or 0) - (combo_start.p1.super or 0),
+                p2_drive = (combo_finish.p2.drive_adjusted or 0) - (combo_start.p2.drive_adjusted or 0),
+                p2_super = (combo_finish.p2.super or 0) - (combo_start.p2.super or 0),
+                p1_position = (combo_finish.p1.pos_x or 0) - (combo_start.p1.pos_x or 0),
+                p2_position = (combo_finish.p2.pos_x or 0 ) - (combo_start.p2.pos_x or 0),
                 gap = combo_finish.p1.gap or 0
             }
         }
@@ -243,45 +250,56 @@ local function color(val)
 end
 
 local function process_player_info()
+    local meter_datas = TrainingManager._tCommon.SnapShotDatas[0]._DisplayData.FrameMeterSSData.MeterDatas
+
     local p1_data = {}
     local p2_data = {}
-    local p1HitDT = nil
-    local p2HitDT = nil
-    
-    local player1 = safe_get_player_data(0)
-    local player2 = safe_get_player_data(1)
-    local team1 = safe_get_team_data(0)
-    local team2 = safe_get_team_data(1)
-    
-    local p1Engine = nil
-    local p2Engine = nil
+    local player1 = get_player_data(0)
+    local player2 = get_player_data(1)
+    local team1 = get_team_data(0)
+    local team2 = get_team_data(1)
+    local meter1 = meter_datas[0]
+    local meter2 = meter_datas[1]
+    local p1_engine = nil
+    local p2_engine = nil
+    local p1_hit_dt = nil
+    local p2_hit_dt = nil
+
     if player1.mpActParam and player1.mpActParam.ActionPart then
-        p1Engine = player1.mpActParam.ActionPart._Engine
+        p1_engine = player1.mpActParam.ActionPart._Engine
     end
     if player2.mpActParam and player2.mpActParam.ActionPart then
-        p2Engine = player2.mpActParam.ActionPart._Engine
+        p2_engine = player2.mpActParam.ActionPart._Engine
     end
     
-    if p1Engine then
-        p1_data.mActionId = p1Engine:get_ActionID()
-        p1_data.mActionFrame = p1Engine:get_ActionFrame()
-        p1_data.mEndFrame = p1Engine:get_ActionFrameNum()
-        p1_data.mMarginFrame = p1Engine:get_MarginFrame()
+    if p1_engine then
+        p1_data.action_id = p1_engine:get_ActionID()
+        p1_data.action_frame = p1_engine:get_ActionFrame()
+        p1_data.end_frame = p1_engine:get_ActionFrameNum()
+        p1_data.margin_frame = p1_engine:get_MarginFrame()
+		p1_data.main_frame = p1_engine.mParam.action.ActionFrame.MainFrame
+		p1_data.follow_frame = p1_engine.mParam.action.ActionFrame.FollowFrame
     end
     
-    if p2Engine then
-        p2_data.mActionId = p2Engine:get_ActionID()
-        p2_data.mActionFrame = p2Engine:get_ActionFrame()
-        p2_data.mEndFrame = p2Engine:get_ActionFrameNum()
-        p2_data.mMarginFrame = p2Engine:get_MarginFrame()
+    if p2_engine then
+        p2_data.action_id = p2_engine:get_ActionID()
+        p2_data.action_frame = p2_engine:get_ActionFrame()
+        p2_data.end_frame = p2_engine:get_ActionFrameNum()
+        p2_data.margin_frame = p2_engine:get_MarginFrame()
+		p2_data.main_frame = p2_engine.mParam.action.ActionFrame.MainFrame
+		p2_data.follow_frame = p2_engine.mParam.action.ActionFrame.FollowFrame        
     end
     
-    p1HitDT = player2.pDmgHitDT
-    p2HitDT = player1.pDmgHitDT
+    p1_hit_dt = player2.pDmgHitDT
+    p2_hit_dt = player1.pDmgHitDT
+
+    p1.stun_frame = meter1.StunFrame
+    p1.stun_frame_str = string.gsub(p1.stun_frame, "F", "")
+    p1.stun_frame_int = tonumber(p1.stun_frame_str) or 0
     
-    p1_data.HP_cap = player1.heal_new or 0
-    p1_data.current_HP = player1.vital_new or 0
-    p1_data.HP_cooldown = player1.healing_wait or 0
+    p1_data.hp_cap = player1.heal_new or 0
+    p1_data.hp_current = player1.vital_new or 0
+    p1_data.hp_cooldown = player1.healing_wait or 0
     p1_data.dir = bitand(player1.BitValue or 0, 128) == 128
     p1_data.curr_hitstop = player1.hit_stop or 0
     p1_data.max_hitstop = player1.hit_stop_org or 0
@@ -304,24 +322,28 @@ local function process_player_info()
     p1_data.super = team1 and team1.mSuperGauge or 0
     p1_data.buff = player1.style_timer or 0
     p1_data.debuff_timer = player1.damage_cond and player1.damage_cond.timer or 0
-    p1_data.chargeInfo = p1ChargeInfo
     p1_data.gap = cPlayer[0].vs_distance.v / 65536.0
     if player1.pos and player1.pos.x then
-        p1_data.posX = player1.pos.x.v / 65536.0
+        p1_data.pos_x = player1.pos.x.v / 65536.0
         p1_data.posY = player1.pos.y.v / 65536.0
     else
-        p1_data.posX = 0
+        p1_data.pos_x = 0
         p1_data.posY = 0
     end
     p1_data.combo_count = cPlayer[1].combo_scale.count
     p1_data.combo_scale_now = cPlayer[1].combo_scale.now
     p1_data.combo_scale_start = cPlayer[1].combo_scale.start
     p1_data.combo_scale_buff = cPlayer[1].combo_scale.buff
+    p1_data.advantage = p1.stun_frame_int
     p1_data.character = player1.character or 0 -- TODO
+
+    p2.stun_frame = meter2.StunFrame
+    p2.stun_frame_str = string.gsub(p2.stun_frame, "F", "")
+    p2.stun_frame_int = tonumber(p2.stun_frame_str) or 0
     
-    p2_data.HP_cap = player2.heal_new or 0
-    p2_data.current_HP = player2.vital_new or 0
-    p2_data.HP_cooldown = player2.healing_wait or 0
+    p2_data.hp_cap = player2.heal_new or 0
+    p2_data.hp_current = player2.vital_new or 0
+    p2_data.hp_cooldown = player2.healing_wait or 0
     p2_data.dir = bitand(player2.BitValue or 0, 128) == 128
     p2_data.curr_hitstop = player2.hit_stop or 0
     p2_data.max_hitstop = player2.hit_stop_org or 0
@@ -343,29 +365,29 @@ local function process_player_info()
     p2_data.super = team2 and team2.mSuperGauge or 0
     p2_data.buff = player2.style_timer or 0
     p2_data.debuff_timer = player2.damage_cond and player2.damage_cond.timer or 0
-    p2_data.chargeInfo = p2ChargeInfo
     p2_data.gap = cPlayer[1].vs_distance.v / 65536.0
     if player2.pos and player2.pos.x then
-        p2_data.posX = player2.pos.x.v / 65536.0
+        p2_data.pos_x = player2.pos.x.v / 65536.0
         p2_data.posY = player2.pos.y.v / 65536.0
     else
-        p2_data.posX = 0
+        p2_data.pos_x = 0
         p2_data.posY = 0
     end
     p2_data.combo_count = cPlayer[0].combo_scale.count
     p2_data.combo_scale_now = cPlayer[0].combo_scale.now
     p2_data.combo_scale_start = cPlayer[0].combo_scale.start
     p2_data.combo_scale_buff = cPlayer[0].combo_scale.buff
+    p2_data.advantage = p2.stun_frame_int
     p2_data.character = player2.character or 0 -- TODO
     
-    return p1_data, p1HitDT, p2_data, p2HitDT
+    return p1_data, p1_hit_dt, p2_data, p2_hit_dt
 end
 
 re.on_frame(function()
     if not sPlayer then return end
     if sPlayer.prev_no_push_bit ~= 0 then
         p1_prev, p2_prev = deep_copy(p1), deep_copy(p2)
-        p1, p1HitDT, p2, p2HitDT = process_player_info()
+        p1, p1_hit_dt, p2, p2_hit_dt = process_player_info()
         
         if check_combo_started() then
             p1.attacker = attacker
@@ -389,33 +411,37 @@ re.on_frame(function()
                 end
             end                
 
-            combo_inputs[#combo_inputs] = p1.mActionId
+            combo_inputs[#combo_inputs] = p1.action_id
+
             combo_started = true
             combo_finished = false
         end
 
         if check_combo_in_progress() then
             if attacker == 0 then
-                if combo_inputs[#combo_inputs] ~= p1.mActionId then
-                    combo_inputs[#combo_inputs] = p1.mActionId
+                if combo_inputs[#combo_inputs] ~= p1.action_id then
+                    combo_inputs[#combo_inputs] = p1.action_id
+
                 end
             elseif attacker == 1 then
-                if combo_inputs[#combo_inputs] ~= p2.mActionId then
-                    combo_inputs[#combo_inputs] = p2.mActionId
+                if combo_inputs[#combo_inputs] ~= p2.action_id then
+                    combo_inputs[#combo_inputs] = p2.action_id
                 end
             end
         end
         
         if check_combo_finished() then
-            combo_finish.p1 = deep_copy(p1)
-            combo_finish.p2 = deep_copy(p2)
-            combo_finished = true
+            if (attacker == 0 and p1.advantage ~= 0) or (attacker == 1 and p2.advantage ~= 0) then
+                combo_finish.p1 = deep_copy(p1)
+                combo_finish.p2 = deep_copy(p2)
+                combo_finished = true
 
-            if auto_save_combos then
-                save_combo()
+                if auto_save_combos then
+                    save_combo()
+                end
+                
+                combo_started = false
             end
-            
-            combo_started = false
         end
         
         imgui.begin_window("Combo Data", true, 1|8)
@@ -443,85 +469,101 @@ re.on_frame(function()
                     imgui.table_setup_column("P1Super", nil, 20)
                     imgui.table_setup_column("P2Drive", nil, 20)
                     imgui.table_setup_column("P2Super", nil, 20)
-                    imgui.table_setup_column("KD", nil, 10)
+                    imgui.table_setup_column("Adv", nil, 10)
                     imgui.table_setup_column("P1Carry", nil, 20)
                     imgui.table_setup_column("P2Carry", nil, 20)
                     imgui.table_setup_column("Gap", nil, 10)
                     imgui.table_headers_row()
                     
                     imgui.table_next_row()
+
                     imgui.table_set_column_index(0)
                     imgui.text("Start")
+
                     imgui.table_set_column_index(1)
                     if attacker == 0 then
-                        imgui.text(tostring(combo_start.p2.current_HP or ""))
+                        imgui.text(tostring(combo_start.p2.hp_current or ""))
                     elseif attacker == 1 then
-                        imgui.text(tostring(combo_start.p1.current_HP or ""))
+                        imgui.text(tostring(combo_start.p1.hp_current or ""))
                     end
+
                     imgui.table_set_column_index(2)
-                    imgui.text(tostring(combo_start.p1.drive_adjusted or ""))
+                    imgui.text(combo_start.p1.drive_adjusted or "")
+
                     imgui.table_set_column_index(3)
-                    imgui.text(tostring(combo_start.p1.super or ""))
+                    imgui.text(combo_start.p1.super or "")
+
                     imgui.table_set_column_index(4)
-                    imgui.text(tostring(combo_start.p2.drive_adjusted or ""))
+                    imgui.text(combo_start.p2.drive_adjusted or "")
+
                     imgui.table_set_column_index(5)
                     imgui.text(tostring(combo_start.p2.super or ""))
+
                     imgui.table_set_column_index(7)
-                    if combo_start.p1.posX then
-                        imgui.text(string.format("%.2f", combo_start.p1.posX))
+                    if combo_start.p1.pos_x then
+                        imgui.text(string.format("%.1f", combo_start.p1.pos_x))
                     else
                         imgui.text("")            
                     end
                     imgui.table_set_column_index(8)
-                    if combo_start.p2.posX then
-                        imgui.text(string.format("%.2f", combo_start.p2.posX))
+                    if combo_start.p2.pos_x then
+                        imgui.text(string.format("%.1f", combo_start.p2.pos_x))
                     else
                         imgui.text("")
                     end
 
                     imgui.table_next_row()
+
                     imgui.table_set_column_index(0)
                     imgui.text("Finish")
+                    
                     if not combo_started then
                         imgui.table_set_column_index(1)
                         if attacker == 0 then
-                            imgui.text(tostring(combo_finish.p2.current_HP or ""))
+                            imgui.text(tostring(combo_finish.p2.hp_current or ""))
                         elseif attacker == 1 then
-                            imgui.text(tostring(combo_finish.p1.current_HP or ""))
+                            imgui.text(tostring(combo_finish.p1.hp_current or ""))
                         end
+                        
                         imgui.table_set_column_index(2)
                         imgui.text(tostring(combo_finish.p1.drive_adjusted or ""))
+                        
                         imgui.table_set_column_index(3)
                         imgui.text(tostring(combo_finish.p1.super or ""))
+                        
                         imgui.table_set_column_index(4)
                         imgui.text(tostring(combo_finish.p2.drive_adjusted or ""))
+                        
                         imgui.table_set_column_index(5)
                         imgui.text(tostring(combo_finish.p2.super or ""))
+                        
                         imgui.table_set_column_index(7)
-                        if combo_finish.p1.posX then
-                            imgui.text(string.format("%.2f", combo_finish.p1.posX))
+                        if combo_finish.p1.pos_x then
+                            imgui.text(string.format("%.1f", combo_finish.p1.pos_x))
                         else
                             imgui.text("")            
                         end
+                        
                         imgui.table_set_column_index(8)
-                        if combo_finish.p2.posX then
-                            imgui.text(string.format("%.2f", combo_finish.p2.posX))
+                        if combo_finish.p2.pos_x then
+                            imgui.text(string.format("%.1f", combo_finish.p2.pos_x))
                         else
                             imgui.text("")            
                         end
                     end
 
                     imgui.table_next_row()
+                    
                     imgui.table_set_column_index(0)
                     imgui.text("Total")
+                    
                     if combo_finished then
-                        
                         imgui.table_set_column_index(1)
                         if attacker == 0 then
-                            local finished_hp_diff = (combo_start.p2.current_HP or 0) - (combo_finish.p2.current_HP or 0)
+                            local finished_hp_diff = (combo_start.p2.hp_current or 0) - (combo_finish.p2.hp_current or 0)
                             color(finished_hp_diff)
                         elseif attacker == 1 then
-                            local finished_hp_diff = (combo_start.p1.current_HP or 0) - (combo_finish.p1.current_HP or 0)
+                            local finished_hp_diff = (combo_start.p1.hp_current or 0) - (combo_finish.p1.hp_current or 0)
                             color(finished_hp_diff)
                         end
                         
@@ -540,30 +582,37 @@ re.on_frame(function()
                         imgui.table_set_column_index(5)
                         local finished_p2_super = (combo_finish.p2.super or 0) - (combo_start.p2.super or 0)
                         color(finished_p2_super)
+
+                        imgui.table_set_column_index(6)
+                        if attacker == 0 then
+                            imgui.text(combo_finish.p1.advantage)
+                        elseif attacker == 1 then
+                            imgui.text(combo_finish.p2.advantage)
+                        end
                         
                         imgui.table_set_column_index(7)
                         local p1_carry = 0
-                        if attacker == 0 and p1.dir then
-                            p1_carry = (combo_finish.p1.posX or 0) - (combo_start.p1.posX or 0)
-                        elseif attacker == 0 and not p1.dir then
-                            p1_carry = (combo_start.p1.posX or 0) - (combo_finish.p1.posX or 0)
-                        elseif attacker == 1 and p2.dir then
-                            p1_carry = (combo_finish.p1.posX or 0) - (combo_start.p1.posX or 0)
-                        elseif attacker == 1 and not p2.dir then
-                            p1_carry = (combo_start.p1.posX or 0) - (combo_finish.p1.posX or 0)
+                        if attacker == 0 and combo_finish.p1.dir then
+                            p1_carry = (combo_finish.p1.pos_x or 0) - (combo_start.p1.pos_x or 0)
+                        elseif attacker == 0 and not combo_finish.p1.dir then
+                            p1_carry = (combo_start.p1.pos_x or 0) - (combo_finish.p1.pos_x or 0)
+                        elseif attacker == 1 and combo_finish.p2.dir then
+                            p1_carry = (combo_finish.p1.pos_x or 0) - (combo_start.p1.pos_x or 0)
+                        elseif attacker == 1 and not combo_finish.p2.dir then
+                            p1_carry = (combo_start.p1.pos_x or 0) - (combo_finish.p1.pos_x or 0)
                         end
                         color(p1_carry)
 
                         imgui.table_set_column_index(8)
                         local p2_carry = 0
-                        if attacker == 0 and p1.dir then
-                                p2_carry = (combo_finish.p2.posX or 0) - (combo_start.p2.posX or 0)
-                        elseif attacker == 0 and not p1.dir then
-                                p2_carry = (combo_start.p2.posX or 0) - (combo_finish.p2.posX or 0) 
-                        elseif attacker == 1 and p2.dir then
-                            p2_carry = (combo_finish.p2.posX or 0) - (combo_start.p2.posX or 0)
-                        elseif attacker == 1 and not p2.dir then
-                            p2_carry = (combo_start.p2.posX or 0) - (combo_finish.p2.posX or 0)
+                        if attacker == 0 and combo_finish.p1.dir then
+                            p2_carry = (combo_finish.p2.pos_x or 0) - (combo_start.p2.pos_x or 0)
+                        elseif attacker == 0 and not combo_finish.p1.dir then
+                            p2_carry = (combo_start.p2.pos_x or 0) - (combo_finish.p2.pos_x or 0) 
+                        elseif attacker == 1 and combo_finish.p2.dir then
+                            p2_carry = (combo_finish.p2.pos_x or 0) - (combo_start.p2.pos_x or 0)
+                        elseif attacker == 1 and not combo_finish.p2.dir then
+                            p2_carry = (combo_start.p2.pos_x or 0) - (combo_finish.p2.pos_x or 0)
                         end
                         color(p2_carry)
 
@@ -589,6 +638,7 @@ re.on_frame(function()
         
         if show_saved_combos then
             imgui.spacing()
+            imgui.set_next_item_open(true, 2)
             if imgui.tree_node(string.format("Saved Combos (%d)", #all_combos)) then
                 imgui.spacing()
                 imgui.text("Settings:")
@@ -618,9 +668,9 @@ re.on_frame(function()
                         imgui.table_setup_column("P1 Super", nil, 20)
                         imgui.table_setup_column("P2 Drive", nil, 20)
                         imgui.table_setup_column("P2 Super", nil, 20)
-                        imgui.table_setup_column("KD", nil, 15)
+                        imgui.table_setup_column("Adv", nil, 15)
                         imgui.table_setup_column("P1 Pos", nil, 20)
-                        imgui.table_setup_column("Carry", nil, 20)
+                        imgui.table_setup_column("P2 Pos", nil, 20)
                         imgui.table_setup_column("Gap", nil, 20)
                         imgui.table_setup_column("Actions", nil, 25)
                         imgui.table_headers_row()
@@ -644,28 +694,57 @@ re.on_frame(function()
                             imgui.text(string.format("%.0f", combo.totals.damage or 0))
                             
                             imgui.table_set_column_index(3)
-                            local p1_drive_gain = combo.totals.p1_drive_gain or 0
-                            color(p1_drive_gain)
+                            local p1_drive = combo.totals.p1_drive or 0
+                            color(p1_drive)
                             
                             imgui.table_set_column_index(4)
-                            local p1_super_gain = combo.totals.p1_super_gain or 0
-                            color(p1_super_gain)
+                            local p1_super = combo.totals.p1_super or 0
+                            color(p1_super)
                             
                             imgui.table_set_column_index(5)
-                            local p2_drive_gain = combo.totals.p2_drive_gain or 0
-                            color(p2_drive_gain)
+                            local p2_drive = combo.totals.p2_drive or 0
+                            color(p2_drive)
                             
                             imgui.table_set_column_index(6)
-                            local p2_super_gain = combo.totals.p2_super_gain or 0
-                            color(p2_super_gain)
+                            local p2_super = combo.totals.p2_super or 0
+                            color(p2_super)
+
+                            imgui.table_set_column_index(7)
+                            if combo.totals.attacker == 0 then
+                                imgui.text(combo.totals.p1_advantage)
+                            elseif combo.totals.attacker == 1 then
+                                imgui.text(combo.totals.p2_advantage)
+                            end
                             
                             imgui.table_set_column_index(8)
-                            local pos_change = combo.totals.p1_position_change or 0
-                            color(pos_change)
+                            if combo.totals.attacker == 0 then
+                                if combo.totals.p1_dir then
+                                    color(combo.totals.p1_position)
+                                else
+                                    color(-1 * combo.totals.p1_position)
+                                end
+                            elseif combo.totals.attacker == 1 then
+                                if combo.totals.p2_dir then
+                                   color(combo.totals.p1_position)
+                                else
+                                    color(-1 * combo.totals.p1_position)
+                                end
+                            end
 
                             imgui.table_set_column_index(9)
-                            local carry = combo.totals.p2_position_change or 0
-                            color(carry)
+                            if combo.totals.attacker == 0 then
+                                if combo.totals.p1_dir then
+                                    color(combo.totals.p2_position)
+                                else
+                                    color(-1 * combo.totals.p2_position)
+                                end
+                            elseif combo.totals.attacker == 1 then
+                                if combo.totals.p2_dir then
+                                   color(combo.totals.p2_position)
+                                else
+                                    color(-1 * combo.totals.p2_position)
+                                end
+                            end
                             
                             imgui.table_set_column_index(10)
                             local finish_gap = combo.totals.gap or 0
@@ -680,8 +759,11 @@ re.on_frame(function()
 
                             local function popup_separator()
                                 imgui.table_next_row()
+                                
                                 imgui.table_set_column_index(0)
+
                                 imgui.text("")
+                                
                                 imgui.table_set_column_index(1)
                                 imgui.text("")
                             end
@@ -695,8 +777,10 @@ re.on_frame(function()
                                     imgui.table_setup_column("Value", nil, 150)
 
                                     imgui.table_next_row()
+
                                     imgui.table_set_column_index(0)
                                     imgui.text("Time:")
+                                    
                                     imgui.table_set_column_index(1)
                                     imgui.text(combo.timestamp or "")
 
@@ -706,154 +790,243 @@ re.on_frame(function()
                                     if combo.totals.attacker == 0 then
                                         imgui.table_set_column_index(0)
                                         imgui.text("Start P2 HP:")
+                                        
                                         imgui.table_set_column_index(1)
-                                        imgui.text(string.format("%.0f", combo.start.p2.current_HP or 0))
+                                        imgui.text(combo.start.p2.hp_current or 0)
 
                                         imgui.table_next_row()
+
                                         imgui.table_set_column_index(0)
                                         imgui.text("Finish P2 HP:")
+                                        
                                         imgui.table_set_column_index(1)
-                                        imgui.text(string.format("%.0f", combo.finish.p2.current_HP or 0))
+                                        imgui.text(combo.finish.p2.hp_current or 0)
 
                                     elseif combo.totals.attacker == 1 then
                                         imgui.table_set_column_index(0)
                                         imgui.text("Start P1 HP:")
+                                        
                                         imgui.table_set_column_index(1)
-                                        imgui.text(string.format("%.0f", combo.start.p1.current_HP or 0))
+                                        imgui.text(combo.start.p1.hp_current or 0)
 
                                         imgui.table_next_row()
+                                        
                                         imgui.table_set_column_index(0)
                                         imgui.text("Finish P1 HP:")
+                                        
                                         imgui.table_set_column_index(1)
-                                        imgui.text(string.format("%.0f", combo.finish.p1.current_HP or 0))
+                                        imgui.text(combo.finish.p1.hp_current or 0)
                                     end
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Total Damage:")
+                                    
                                     imgui.table_set_column_index(1)
                                     color(combo.totals.damage)
 
                                     popup_separator()
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Start P1 Drive:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.start.p1.drive_adjusted or 0))
+                                    imgui.text(combo.start.p1.drive_adjusted or 0)
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Finish P1 Drive:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.finish.p1.drive_adjusted or 0))
+                                    imgui.text(combo.finish.p1.drive_adjusted or 0)
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Total P1 Drive:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    color(combo.totals.p1_drive_gain)
+                                    color(combo.totals.p1_drive)
 
                                     popup_separator()
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Start P1 Super:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.start.p1.super or 0))
+                                    imgui.text(combo.start.p1.super or 0)
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Finish P1 Super:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.finish.p1.super or 0))
+                                    imgui.text(combo.finish.p1.super or 0)
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Total P1 Super:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    color(combo.totals.p1_super_gain)
+                                    color(combo.totals.p1_super)
 
                                     popup_separator()
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Start P2 Drive:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.start.p2.drive_adjusted or 0))
+                                    imgui.text(combo.start.p2.drive_adjusted or 0)
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Finish P2 Drive:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.finish.p2.drive_adjusted or 0))
+                                    imgui.text(combo.finish.p2.drive_adjusted or 0)
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Total P2 Drive:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    color(combo.totals.p2_drive_gain)
+                                    color(combo.totals.p2_drive)
 
                                     popup_separator()
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Start P2 Super:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.start.p2.super or 0))
+                                    imgui.text(combo.start.p2.super or 0)
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Finish P2 Super:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.0f", combo.finish.p2.super or 0))
+                                    imgui.text(combo.finish.p2.super or 0)
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Total P2 Super:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    color(combo.totals.p2_super_gain)
+                                    color(combo.totals.p2_super)
 
                                     popup_separator()
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Start P1 Pos:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.2f", combo.start.p1.posX or 0))
+                                    imgui.text(string.format("%.1f", combo.start.p1.pos_x or 0))
 
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("Finish P1 Pos:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.2f", combo.finish.p1.posX or 0))
+                                    imgui.text(string.format("%.1f", combo.finish.p1.pos_x or 0))
                                     
                                     imgui.table_next_row()
+                                    
                                     imgui.table_set_column_index(0)
                                     imgui.text("P1 Pos Δ:")
+                                    
                                     imgui.table_set_column_index(1)
-                                    color(combo.totals.p1_position_change)
+                                    if combo.totals.attacker == 0 then
+                                        if not combo.totals.p1_dir then
+                                            color(-1 * combo.totals.p1_position)
+                                        else
+                                            color(combo.totals.p1_position)
+                                        end
+                                    elseif combo.totals.attacker == 1 then
+                                        if not combo.totals.p2_dir then
+                                            color(-1 * combo.totals.p1_position)
+                                        else
+                                            color(combo.totals.p1_position)
+                                        end
+                                    end
+
+                                    popup_separator()
+
+                                    imgui.table_next_row()
+                                    
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("Start P2 Pos:")
+                                    
+                                    imgui.table_set_column_index(1)
+                                    imgui.text(string.format("%.1f", combo.start.p2.pos_x or 0))
+
+                                    imgui.table_next_row()
+                                    
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("Finish P2 Pos:")
+                                    
+                                    imgui.table_set_column_index(1)
+                                    imgui.text(string.format("%.2f", combo.finish.p2.pos_x or 0))
+                                    
+                                    imgui.table_next_row()
+                                    
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("P2 Pos Δ:")
+                                    
+                                    imgui.table_set_column_index(1)
+                                    if combo.totals.attacker == 0 then
+                                        if not combo.totals.p1_dir then
+                                            color(-1 * combo.totals.p2_position)
+                                        else
+                                            color(combo.totals.p2_position)
+                                        end
+                                    elseif combo.totals.attacker == 1 then
+                                        if not combo.totals.p2_dir then
+                                            color(-1 * combo.totals.p2_position)
+                                        else
+                                            color(combo.totals.p2_position)
+                                        end
+                                    end
 
                                     popup_separator()
 
                                     imgui.table_next_row()
                                     imgui.table_set_column_index(0)
-                                    imgui.text("Start P2 Pos:")
-                                    imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.2f", combo.start.p2.posX or 0))
+                                    imgui.text("Advantage:")
 
-                                    imgui.table_next_row()
-                                    imgui.table_set_column_index(0)
-                                    imgui.text("Finish P2 Pos:")
                                     imgui.table_set_column_index(1)
-                                    imgui.text(string.format("%.2f", combo.finish.p2.posX or 0))
+                                    if combo.totals.attacker == 0 then
+                                        imgui.text(combo.totals.p1_advantage)
+                                    elseif combo.totals.attacker == 1 then
+                                        imgui.text(combo.totals.p2_advantage)
+                                    end
                                     
                                     imgui.table_next_row()
-                                    imgui.table_set_column_index(0)
-                                    imgui.text("Carry:")
-                                    imgui.table_set_column_index(1)
-                                    color(combo.totals.p2_position_change)
                                     
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("Gap:")
+
+                                    imgui.table_set_column_index(1)
+                                    imgui.text(combo.totals.gap)
+
                                     imgui.end_table()
                                 end
                                 imgui.end_popup()
