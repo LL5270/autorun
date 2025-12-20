@@ -1,5 +1,49 @@
-local CHAR_ID_TABLE_PATH = "char_id_table.json"
-local char_id_table = json.load_file(CHAR_ID_TABLE_PATH) or {}
+local json = json
+
+local COMBO_SAVE_DIR = "combo_data/"
+local combo_save_path
+local json_files
+
+local MOVE_DICT_DIR = "move_dicts/"
+local move_dict_path
+
+local p1_char_dict
+local p2_char_dict
+local named_action
+local named_action_list
+
+local char_id_table = {
+    [0] = "",
+	[1] = "Ryu", 
+	[2] = "Luke", 
+	[3] = "Kimberly", 
+	[4] = "ChunLi", 
+	[5] = "Manon", 
+	[6] = "Zangief", 
+	[7] = "JP", 
+	[8] = "Dhalsim", 
+	[9] = "Cammy", 
+	[10] = "Ken", 
+	[11] = "DeeJay", 
+	[12] = "Lily", 
+	[13] = "AKI", 
+	[14] = "Rashid", 
+	[15] = "Blanka", 
+	[16] = "Juri", 
+	[17] = "Marisa", 
+	[18] = "Guile", 
+	[19] = "Ed",
+	[20] = "EHonda", 
+	[21] = "Jamie", 
+	[22] = "Akuma", 
+	[26] = "M Bison", 
+	[27] = "Terry",
+    [28] = "Mai",
+    [29] = "Elena",
+    [25] = "Sagat",
+    [30] = "CViper"
+}
+
 local meter_datas
 local p1 = {}
 local p1_prev = {}
@@ -12,6 +56,9 @@ local combo_start = {
     p1 = {},
     p2 = {}
 }
+
+local p1_action_ids
+local p2_action_ids
 local combo_finish = {
     p1 = {},
     p2 = {}
@@ -21,9 +68,72 @@ local combo_finished = false
 local attacker
 local all_combos = {}
 local current_combo_index = 0
-local max_combos_to_save = 20
+local max_combos_to_save = 200
+local max_combos_to_load = 100
 local auto_save_combos = true
 local show_saved_combos = true
+
+re.on_config_save(function()
+    local filename = os.date("%y%m%d_%H%M%S") .. ".json"
+    combo_save_path = COMBO_SAVE_DIR .. filename
+    jsonify_table(all_combos)
+    json.dump_file(combo_save_path, all_combos)
+end)
+
+local function load_json()
+    json_files = fs.glob([[combo_data\\.*json]])
+    if json_files then
+        for _, file_path in ipairs(json_files) do
+            local data = json.load_file(file_path)
+            if data then
+                for _, combo in ipairs(data) do
+                    if #all_combos < max_combos_to_load then
+                        table.insert(all_combos, combo)
+                    end
+                end
+            end
+        end
+    end
+end
+
+load_json()
+
+local function get_char_dict(char_id)
+    move_dict_path = tostring(char_id) .. ".json"
+    return json.load_file(MOVE_DICT_DIR .. move_dict_path) or {}
+end
+
+local function format_action_id(action_id)
+    -- Ensure action ID is zero-padded to 4 digits
+    if action_id == nil then return "0000" end
+    local id_str = tostring(action_id)
+    while #id_str < 4 do
+        id_str = "0" .. id_str
+    end
+    return id_str
+end
+
+local function format_action_id_list(action_id_list)
+    local formatted_action_id_list = {}
+    local formatted_id
+    for k, v in pairs(action_id_list) do
+        formatted_id = format_action_id(v)
+        table.insert(formatted_action_id_list, formatted_id)
+    end
+    return formatted_action_id_list
+end
+
+local function format_named_action_list(formatted_id_list, char_dict)
+    named_action_list = {}
+    named_action = ""
+    for k, v in pairs(formatted_id_list) do
+        if v then
+            named_action = char_dict[v]    
+        end
+        table.insert(named_action_list, named_action)
+    end
+    return named_action_list
+end
 
 local function get_field(obj, field_name)
     if not obj then return nil end
@@ -91,6 +201,10 @@ local function save_combo()
         elseif attacker == 1 then
             total_damage = (combo_start.p1.hp_current or 0) - (combo_finish.p1.hp_current or 0)
         end
+        p1_char_dict = get_char_dict(tostring(combo_finish.p1.char_id))
+        p2_char_dict = get_char_dict(tostring(combo_finish.p2.char_id))
+        p1_action_ids = format_action_id_list(combo_finish.p1.inputs)
+        p2_action_ids = format_action_id_list(combo_finish.p2.inputs)
         local combo_data = {
             index = current_combo_index,
             start = {
@@ -102,23 +216,31 @@ local function save_combo()
                 p2 = deep_copy(combo_finish.p2)
             },
             totals = {
+                gap = combo_finish.p1.gap or 0,
                 attacker = attacker,
                 damage = total_damage,
+                p1_char_id = combo_finish.p1.char_id,
+                p1_char_name = combo_finish.p1.char_name,
                 p1_dir = combo_finish.p1.dir,
-                p2_dir = combo_finish.p2.dir,
                 p1_advantage = combo_finish.p1.advantage,
-                p2_advantage = combo_finish.p2.advantage,
                 p1_drive = (combo_finish.p1.drive_adjusted or 0) - (combo_start.p1.drive_adjusted or 0),
                 p1_super = (combo_finish.p1.super or 0) - (combo_start.p1.super or 0),
+                p1_position = (combo_finish.p1.pos_x or 0) - (combo_start.p1.pos_x or 0),
+                p1_actions = p1_action_ids,
+                p1_actions_named = format_named_action_list(p1_action_ids, p1_char_dict) or {},
+                p2_char_id = combo_finish.p2.char_id,
+                p2_char_name = combo_finish.p2.char_name,                
+                p2_dir = combo_finish.p2.dir,
+                p2_advantage = combo_finish.p2.advantage,
                 p2_drive = (combo_finish.p2.drive_adjusted or 0) - (combo_start.p2.drive_adjusted or 0),
                 p2_super = (combo_finish.p2.super or 0) - (combo_start.p2.super or 0),
-                p1_position = (combo_finish.p1.pos_x or 0) - (combo_start.p1.pos_x or 0),
                 p2_position = (combo_finish.p2.pos_x or 0 ) - (combo_start.p2.pos_x or 0),
-                gap = combo_finish.p1.gap or 0
+                p2_actions = p2_action_ids,
+                p2_actions_named = format_named_action_list(p2_action_ids, p2_char_dict) or {}
             }
         }
         
-        combo_data.timestamp = os.date("%H:%M:%S")
+        combo_data.timestamp = os.date("%H%M%S_%y%m%d")
         
         table.insert(all_combos, 1, combo_data)
         
@@ -259,7 +381,8 @@ local function process_player_info()
     p1_data.combo_scale_buff = cPlayer[1].combo_scale.buff
     p1_data.advantage = p1.stun_frame_int
     p1_data.char_id = p1_char_id or 0
-    p1_data.char_name = char_id_table.characters[tostring(p1_data.char_id or 0)]
+    p1_data.char_name = char_id_table[p1_data.char_id or 0]
+    p1_data.char_dict_file = MOVE_DICT_DIR .. tostring(p1_data.char_id) .. ".json"
 
     p2.stun_frame = meter2.StunFrame
     p2.stun_frame_str = string.gsub(p2.stun_frame, "F", "")
@@ -294,7 +417,8 @@ local function process_player_info()
     p2_data.combo_scale_buff = cPlayer[0].combo_scale.buff
     p2_data.advantage = p2.stun_frame_int
     p2_data.char_id = p2_char_id or 0
-    p2_data.char_name = char_id_table.characters[tostring(p2_data.char_id or 0)]
+    p2_data.char_name = char_id_table[p2_data.char_id or 0]
+    p2_data.char_dict_file = MOVE_DICT_DIR .. tostring(p2_data.char_id) .. ".json"
     
     return p1_data, p2_data
 end
@@ -308,6 +432,7 @@ re.on_frame(function()
         if check_combo_started() then
             p1.attacker = attacker
             p2.attacker = attacker
+
             combo_start.p1 = deep_copy(p1_prev)
             combo_start.p2 = deep_copy(p2_prev)
 
@@ -355,7 +480,6 @@ re.on_frame(function()
                 combo_started = false
             end
         end
-        
         imgui.begin_window("Combo Data", true, 1|8)
         imgui.set_next_item_open(true, 2)
         if imgui.tree_node("Current Combo") then
@@ -381,9 +505,9 @@ re.on_frame(function()
                     imgui.table_setup_column("P1Super", nil, 20)
                     imgui.table_setup_column("P2Drive", nil, 20)
                     imgui.table_setup_column("P2Super", nil, 20)
-                    imgui.table_setup_column("Adv", nil, 10)
                     imgui.table_setup_column("P1Carry", nil, 20)
                     imgui.table_setup_column("P2Carry", nil, 20)
+                    imgui.table_setup_column("Adv", nil, 10)
                     imgui.table_setup_column("Gap", nil, 10)
                     imgui.table_headers_row()
                     
@@ -412,15 +536,13 @@ re.on_frame(function()
                     imgui.text(tostring(combo_start.p2.super or ""))
 
                     imgui.table_set_column_index(6)
-                    imgui.text(tostring(combo_start.p1.character or ""))
-
-                    imgui.table_set_column_index(7)
                     if combo_start.p1.pos_x then
                         imgui.text(string.format("%.1f", combo_start.p1.pos_x))
                     else
                         imgui.text("")            
                     end
-                    imgui.table_set_column_index(8)
+
+                    imgui.table_set_column_index(7)
                     if combo_start.p2.pos_x then
                         imgui.text(string.format("%.1f", combo_start.p2.pos_x))
                     else
@@ -452,14 +574,14 @@ re.on_frame(function()
                         imgui.table_set_column_index(5)
                         imgui.text(tostring(combo_finish.p2.super or ""))
                         
-                        imgui.table_set_column_index(7)
+                        imgui.table_set_column_index(6)
                         if combo_finish.p1.pos_x then
                             imgui.text(string.format("%.1f", combo_finish.p1.pos_x))
                         else
                             imgui.text("")            
                         end
                         
-                        imgui.table_set_column_index(8)
+                        imgui.table_set_column_index(7)
                         if combo_finish.p2.pos_x then
                             imgui.text(string.format("%.1f", combo_finish.p2.pos_x))
                         else
@@ -499,13 +621,6 @@ re.on_frame(function()
                         color(finished_p2_super)
 
                         imgui.table_set_column_index(6)
-                        if attacker == 0 then
-                            imgui.text(combo_finish.p1.advantage)
-                        elseif attacker == 1 then
-                            imgui.text(combo_finish.p2.advantage)
-                        end
-                        
-                        imgui.table_set_column_index(7)
                         local p1_carry = 0
                         if attacker == 0 and combo_finish.p1.dir then
                             p1_carry = (combo_finish.p1.pos_x or 0) - (combo_start.p1.pos_x or 0)
@@ -517,8 +632,8 @@ re.on_frame(function()
                             p1_carry = (combo_start.p1.pos_x or 0) - (combo_finish.p1.pos_x or 0)
                         end
                         color(p1_carry)
-
-                        imgui.table_set_column_index(8)
+                        
+                        imgui.table_set_column_index(7)
                         local p2_carry = 0
                         if attacker == 0 and combo_finish.p1.dir then
                             p2_carry = (combo_finish.p2.pos_x or 0) - (combo_start.p2.pos_x or 0)
@@ -530,6 +645,13 @@ re.on_frame(function()
                             p2_carry = (combo_start.p2.pos_x or 0) - (combo_finish.p2.pos_x or 0)
                         end
                         color(p2_carry)
+
+                        imgui.table_set_column_index(8)
+                        if attacker == 0 then
+                            imgui.text(combo_finish.p1.advantage)
+                        elseif attacker == 1 then
+                            imgui.text(combo_finish.p2.advantage)
+                        end
 
                         imgui.table_set_column_index(9)
                         imgui.text(string.format("%.0f", combo_finish.p1.gap))
@@ -577,17 +699,17 @@ re.on_frame(function()
                     
                     if imgui.begin_table("saved_combos_table", 12, table_flags) then
                         imgui.table_setup_column("Time", nil, 22)
-                        imgui.table_setup_column("Attacker", nil, 20)
+                        imgui.table_setup_column("Char", nil, 22)
                         imgui.table_setup_column("Dmg", nil, 15)
-                        imgui.table_setup_column("P1 Drive", nil, 20)
-                        imgui.table_setup_column("P1 Super", nil, 20)
-                        imgui.table_setup_column("P2 Drive", nil, 20)
-                        imgui.table_setup_column("P2 Super", nil, 20)
-                        imgui.table_setup_column("Adv", nil, 15)
-                        imgui.table_setup_column("P1 Pos", nil, 20)
-                        imgui.table_setup_column("P2 Pos", nil, 20)
+                        imgui.table_setup_column("P1Drive", nil, 20)
+                        imgui.table_setup_column("P1Super", nil, 20)
+                        imgui.table_setup_column("P2Drive", nil, 20)
+                        imgui.table_setup_column("P2Super", nil, 20)
+                        imgui.table_setup_column("P1Pos", nil, 15)
+                        imgui.table_setup_column("P2Pos", nil, 15)
+                        imgui.table_setup_column("Adv", nil, 20)
                         imgui.table_setup_column("Gap", nil, 20)
-                        imgui.table_setup_column("Actions", nil, 25)
+                        imgui.table_setup_column("Actions", nil, 23)
                         imgui.table_headers_row()
                         
                         for i, combo in ipairs(all_combos) do
@@ -598,9 +720,9 @@ re.on_frame(function()
 
                             imgui.table_set_column_index(1)
                             if combo.totals.attacker == 0 then
-                                imgui.text("P1")
+                                imgui.text(combo.totals.p1_char_name)
                             elseif combo.totals.attacker == 1 then
-                                imgui.text("P2")
+                                imgui.text(combo.totals.p2_char_name)
                             else
                                 imgui.text("")
                             end
@@ -626,13 +748,6 @@ re.on_frame(function()
 
                             imgui.table_set_column_index(7)
                             if combo.totals.attacker == 0 then
-                                imgui.text(combo.totals.p1_advantage)
-                            elseif combo.totals.attacker == 1 then
-                                imgui.text(combo.totals.p2_advantage)
-                            end
-                            
-                            imgui.table_set_column_index(8)
-                            if combo.totals.attacker == 0 then
                                 if combo.totals.p1_dir then
                                     color(combo.totals.p1_position)
                                 else
@@ -645,8 +760,8 @@ re.on_frame(function()
                                     color(-1 * combo.totals.p1_position)
                                 end
                             end
-
-                            imgui.table_set_column_index(9)
+                            
+                            imgui.table_set_column_index(8)
                             if combo.totals.attacker == 0 then
                                 if combo.totals.p1_dir then
                                     color(combo.totals.p2_position)
@@ -659,6 +774,13 @@ re.on_frame(function()
                                 else
                                     color(-1 * combo.totals.p2_position)
                                 end
+                            end
+
+                            imgui.table_set_column_index(9)
+                            if combo.totals.attacker == 0 then
+                                imgui.text(combo.totals.p1_advantage)
+                            elseif combo.totals.attacker == 1 then
+                                imgui.text(combo.totals.p2_advantage)
                             end
                             
                             imgui.table_set_column_index(10)
@@ -981,6 +1103,21 @@ re.on_frame(function()
                                         p2_inputs = tostring(p2_inputs) .. v .. " "
                                     end
                                     imgui.text(p2_inputs)
+
+                                    popup_separator()
+
+                                    imgui.table_next_row()
+
+                                    imgui.table_set_column_index(0)
+                                    imgui.text("P1 Action Names:")
+
+                                    imgui.table_set_column_index(1)
+                                    local p1_named = ""
+                                    for k, v in pairs(combo.totals.p1_actions_named) do
+                                        p1_named = tostring(p1_named) .. v .. " "
+                                    end
+                                    imgui.text(p1_named)
+                                    
 
                                     imgui.end_table()
                                 end
