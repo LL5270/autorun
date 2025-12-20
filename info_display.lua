@@ -197,6 +197,12 @@ re.on_frame(function()
 		p2.mActionFrame = p2Engine:get_ActionFrame()
 		p2.mEndFrame = p2Engine:get_ActionFrameNum()
 		p2.mMarginFrame = p2Engine:get_MarginFrame()
+		-- P1 Startup/Active/Recovery Frame
+		p1.mMainFrame = p1Engine.mParam.action.ActionFrame.MainFrame
+		p1.mFollowFrame = p1Engine.mParam.action.ActionFrame.FollowFrame
+		-- P2 Startup/Active/Recovery Frame
+		p2.mMainFrame = p2Engine.mParam.action.ActionFrame.MainFrame
+		p2.mFollowFrame = p2Engine.mParam.action.ActionFrame.FollowFrame
 		-- HitDT
 		local p1HitDT = cPlayer[1].pDmgHitDT
 		local p2HitDT = cPlayer[0].pDmgHitDT
@@ -216,6 +222,10 @@ re.on_frame(function()
 		p1.full_invuln = cPlayer[0].muteki_time
         p1.juggle = cPlayer[0].combo_dm_air
 		p1.burnout =cPlayer[0].incapacitated or false
+		p1.startup_frames = p1.mMainFrame + 1 -- TODO Make reliable
+		p1.active_frames = p1.mFollowFrame - p1.mMainFrame -- TODO Make reliable
+		p1.recovery_frames = read_sfix(p1.mMarginFrame) - p1.mFollowFrame -- TODO Make reliable
+		p1.total_frames = read_sfix(p1.mMarginFrame) -- TODO Make reliable
         p1.drive = cPlayer[0].focus_new
         p1.drive_cooldown = cPlayer[0].focus_wait
         p1.super = cTeam[0].mSuperGauge
@@ -252,6 +262,10 @@ re.on_frame(function()
 		p2.full_invuln = cPlayer[1].muteki_time
         p2.juggle = cPlayer[1].combo_dm_air
 		p2.burnout =cPlayer[1].incapacitated or false
+		p2.startup_frames = p2.mMainFrame + 1 -- TODO Make reliable
+		p2.active_frames = p2.mFollowFrame - p2.mMainFrame -- TODO Make reliable
+		p2.recovery_frames = read_sfix(p2.mMarginFrame) - p2.mFollowFrame -- TODO Make reliable
+		p2.total_frames = read_sfix(p2.mMarginFrame) -- TODO Make reliable
         p2.drive = cPlayer[1].focus_new
         p2.drive_cooldown = cPlayer[1].focus_wait
         p2.super = cTeam[1].mSuperGauge
@@ -372,6 +386,10 @@ re.on_frame(function()
 				end
 				if imgui.tree_node("Attack Info") then
 					get_hitbox_range(cPlayer[0], cPlayer[0].mpActParam, p1)
+					imgui.multi_color("Startup Frames:", p1.startup_frames)
+					imgui.multi_color("Active Frames:", p1.active_frames)
+					imgui.multi_color("Recovery Frames:", string.format("%.0f", p1.recovery_frames))
+					imgui.multi_color("Total Frames:", string.format("%.0f", p1.total_frames))
 					imgui.multi_color("Absolute Range:", string.format("%.2f", p1.absolute_range))
 					imgui.multi_color("Relative Range:", string.format("%.2f", p1.relative_range))
 					imgui.multi_color("Juggle Counter:", p2.juggle)
@@ -410,6 +428,7 @@ re.on_frame(function()
 							imgui.multi_color("Juggle Limit:", p1HitDT.JuggleLimit)
 							imgui.multi_color("Juggle Increase:", p1HitDT.JuggleAdd)
 							imgui.multi_color("Juggle Start:", p1HitDT.Juggle1st)
+							p1_adv = p1HitDT.HitStopTarget 
 						end
 					
 						imgui.tree_pop()
@@ -487,10 +506,13 @@ re.on_frame(function()
 				end
 				if imgui.tree_node("Attack Info") then
 					get_hitbox_range(cPlayer[1], cPlayer[1].mpActParam, p2)
+					imgui.multi_color("Startup Frames:", p2.startup_frames)
+					imgui.multi_color("Active Frames:", p2.active_frames)
+					imgui.multi_color("Recovery Frames:", string.format("%.0f", p2.recovery_frames))
+					imgui.multi_color("Total Frames:", string.format("%.0f", p2.total_frames))
 					imgui.multi_color("Absolute Range:", string.format("%.2f", p2.absolute_range))
 					imgui.multi_color("Relative Range:", string.format("%.2f", p2.relative_range))
 					imgui.multi_color("Juggle Counter:", p1.juggle)
-					
 					imgui.multi_color("Combo Hit Count:", p2.combo_hit_count)
 					imgui.multi_color("Combo Attack Count:", p2.combo_attack_count)
 					imgui.multi_color("Combo Starter Scaling:", 100 - p2.combo_scale_start .. "%")
