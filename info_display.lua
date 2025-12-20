@@ -206,8 +206,6 @@ re.on_frame(function()
 		p2.mFollowFrame = p2Engine.mParam.action.ActionFrame.FollowFrame
 		-- KD Info from Frame Meter
 		local display_data = training_manager._tCommon.SnapShotDatas[0]._DisplayData
-		local fm_current_frame = display_data.FMCurrentFrame
-		local fm_stop_frame = display_data.FMStopFrame
 		p1.whole_frame = display_data.FrameMeterSSData.MeterDatas[0].WholeFrame
 		p1.meaty_frame = display_data.FrameMeterSSData.MeterDatas[0].MeatyFrame
 		p1.apper_frame = display_data.FrameMeterSSData.MeterDatas[0].ApperFrame
