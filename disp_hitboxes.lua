@@ -1,6 +1,5 @@
 -- Original code from https://github.com/WistfulHopes/SF6Mods
 
-local reframework = reframework
 local CONFIG_PATH = "disp_hitboxes.json"
 local config = json.load_file(CONFIG_PATH) or {}
 
@@ -11,13 +10,14 @@ local save_timer = 0
 local changed
 local gBattle
 local isUnpaused = true
+
 local default = {}
 
-default.options = {}
-default.options.display_menu = true
+default.options = {
+	display_menu = true
+}
 
-default.p1 = {}
-default.p1.toggle = {
+default.toggle = {
 	hide_all = false,
 	hitboxes = true,
 	hitboxes_outline = true,
@@ -38,50 +38,8 @@ default.p1.toggle = {
 	properties = true,
 	position = true
 }
-default.p1.opacity = {
-	hitbox = 25,
-	hitbox_outline = 25,
-	hurtbox = 25,
-	hurtbox_outline = 25,
-	pushbox = 25,
-	pushbox_outline = 25,
-	throwbox = 25,
-	throwbox_outline = 25,
-	throwhurtbox = 25,
-	throwhurtbox_outline = 25,
-	proximitybox = 25,
-	proximitybox_outline = 25,
-	clashbox = 25,
-	clashbox_outline = 25,
-	uniquebox = 25,
-	uniquebox_outline = 25,
-	properties = 100,
-	position = 100
-}
 
-default.p2 = {}
-default.p2.toggle = {
-	hide_all = false,
-	hitboxes = true,
-	hitboxes_outline = true,
-	hurtboxes = true,
-	hurtboxes_outline = true,
-	pushboxes = true,
-	pushboxes_outline = true,
-	throwboxes = true,
-	throwboxes_outline = true,
-	throwhurtboxes = true,
-	throwhurtboxes_outline = true,
-	proximityboxes = true,
-	proximityboxes_outline = true,
-	clashboxes = true,
-	clashboxes_outline = true,
-	uniqueboxes = true,
-	uniqueboxes_outline = true,
-	properties = true,
-	position = true
-}
-default.p2.opacity = {
+default.opacity = {
 	hitbox = 25,
 	hitbox_outline = 25,
 	hurtbox = 25,
@@ -124,6 +82,9 @@ setup_hook("app.training.TrainingManager", "BattleStart", nil, function(retval)
 end)
 
 setup_hook("app.PauseManager", "requestPauseStart", nil, function(retval)
+	local pause_controller = sdk.find_type_definition("app.PauseController")
+	local pause_type = pause_controller:get_field("reqPauseType")
+	log.info(tostring(pause_type))
     isUnpaused = false
     return retval
 end)
@@ -735,10 +696,10 @@ end
 
 local function reset_toggle(player)
     if player == nil then
-        config.p1.toggle = deep_copy(default.p1.toggle)
-        config.p2.toggle = deep_copy(default.p2.toggle)
+        config.p1.toggle = deep_copy(default.toggle)
+        config.p2.toggle = deep_copy(default.toggle)
     else
-        config[player].toggle = deep_copy(default[player].toggle)
+        config[player].toggle = deep_copy(default.toggle)
     end
     mark_for_save()
     return config
@@ -746,10 +707,10 @@ end
 
 local function reset_opacity(player)
     if player == nil then 
-        config.p1.opacity = deep_copy(default.p1.opacity)
-        config.p2.opacity = deep_copy(default.p2.opacity)
+        config.p1.opacity = deep_copy(default.opacity)
+        config.p2.opacity = deep_copy(default.opacity)
     else
-        config[player].opacity = deep_copy(default[player].opacity)
+        config[player].opacity = deep_copy(default.opacity)
     end
     mark_for_save()
     return config
@@ -774,7 +735,7 @@ re.on_frame(function()
     if gBattle then
 		local sPlayer = gBattle:get_field("Player"):get_data(nil)
 		if config.options.display_menu and sPlayer.prev_no_push_bit ~= 0 then
-
+			imgui.set_next_item_open(true, 2)
 			imgui.begin_window("Hitboxes", true, 64)
 			if imgui.tree_node("Toggle") then
 				if imgui.begin_table("ToggleTable", 3) then
