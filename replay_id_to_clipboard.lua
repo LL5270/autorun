@@ -6,6 +6,7 @@ local KEY_N = 0x4E
 local KEY_M = 0x4D
 
 local changed
+local training_manager
 local battle_replay_data_manager
 local replay_list
 local display_size
@@ -16,7 +17,6 @@ local this = {}
 this.config = {}
 this.config.window_show = this.config.window_show or true
 this.config.prevent_skip = this.config.prevent_skip or false
-this.replay_id = nil
 this.is_opened = false
 this.needs_dismiss = false
 this.key_ready = true
@@ -76,6 +76,12 @@ setup_hook("app.esports.bBattleFighterEmoteFlow", "releaseWait", nil, function(r
     return is_replay and sdk.to_ptr(2) or retval
 end)
 
+local function get_game_mode()
+    training_manager = sdk.get_managed_singleton("app.training.TrainingManager")
+    return training_manager:get_field("_GameMode")
+end
+
+-- TODO Find Replay ID value when playing directly from Training Mode
 local function get_replay_id()
     battle_replay_data_manager = sdk.get_managed_singleton("app.BattleReplayDataManager")
     if battle_replay_data_manager then
@@ -120,10 +126,9 @@ end
 
 local function build_window()
     set_window_pos()
-    
     imgui.begin_window(MOD_NAME, nil, 1| 0x10160)
     
-    if this.replay_id then
+    if this.replay_id and this.replay_id ~= "" then
         local clicked, value = imgui.button(this.replay_id, this.config.prevent_skip)
         if clicked then
             sdk.copy_to_clipboard(this.replay_id)
@@ -133,10 +138,9 @@ local function build_window()
             imgui.begin_tooltip()
             imgui.text("Click to copy")
             imgui.text("Hotkey: Ctrl+N")
+            imgui.text(get_game_mode())
             imgui.end_tooltip()
         end
-    else
-        imgui.text("Loading replay ID...")
     end
     
     imgui.end_window()
