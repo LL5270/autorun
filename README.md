@@ -4,7 +4,7 @@
 
 [disp_hitboxes.lua](disp_hitboxes.lua)
 
-![alt text](images/disp_hitboxes.png "Hitbox Viewer")
+![Hitbox Viewer](images/disp_hitboxes.png "Hitbox Viewer")
 
 Hitbox visualization tool for SF6, an improvement on WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods).
 
@@ -25,16 +25,28 @@ The script uses `data/disp_hitboxes.json` for storing:
 - All user-defined presets
 - Active preset
 
+## Replay ID To Clipboard
+
+[replay_id_to_clipboard.lua](replay_id_to_clipboard.lua)
+
+![Replay ID To Clipboard](images/replay_id_to_clipboard.png "Replay ID To Clipboard")
+
+Quickly copy the currently playing Replay ID with a click or hotkey. 
+
+### Usage
+* **Ctrl+N**: Copy ID
+* **Ctrl+M**: Hide/show ID display
+
 ## Combo Data (Beta)
 
 [combo_data.lua](combo_data.lua)
 
-![alt text](images/combo_data.png "Combo Data")
+![Combo Data](images/combo_data.png "Combo Data")
 
 Automatically detects, logs, and analyzes combos. Captures detailed combo data including damage, resource usage, positioning, and knockdown advantage.
 
 ### Work in progress
-Expect bugs when pausing or loading states frequently in Training Mode, playing back dummy recordings, or using Replay Mode. May be unreliable in trade situations or when projectile hits are involved. Some features not fully implemented.
+Expect bugs when pausing or loading states frequently in Training Mode, playing back dummy recordings, or when using Replay Mode. May be unreliable in trade situations or when projectile hits are involved. Some features not fully implemented.
 
 ### Features
 - **Precise Data Snapshots**: Displays values beyond what SF6 offers by default, both at the start of a combo (or single attack) and again when hitstun ends, along with totals showing how much of each resource was gained (or lost) by each player
@@ -63,7 +75,7 @@ Creates multiple timestamped JSON files in `data/combo_data/` on a per-session b
 
 [info_display.lua](info_display.lua)
 
-![alt text](images/info_display.png "Info Display")
+![Info Display](images/info_display.png "Info Display")
 
 A slightly modified version of WistfulHopes' original [info display script](https://github.com/WistfulHopes/SF6Mods) which captures some additional data and adds a new readout display section.
 
