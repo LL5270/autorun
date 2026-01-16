@@ -71,7 +71,6 @@ local char_id_table = {
 re.on_config_save(function()
 	local filename = os.date("%y%m%d_%H%M%S") .. ".json"
 	combo_save_path = COMBO_SAVE_DIR .. filename
-	jsonify_table(all_combos)
 	json.dump_file(combo_save_path, all_combos)
 end)
 
@@ -254,7 +253,6 @@ end
 local function clear_all_combos()
 	all_combos = {}
 	current_combo_index = 0
-	log.info("All combos cleared")
 end
 
 local function check_combo_started()
@@ -293,6 +291,23 @@ local function color(val)
 	else
 		imgui.text("")
 	end
+end
+
+local function copy_combo_to_clipboard(combo)
+    local rounded_carry = math.floor((combo.totals.p2_position / 1000) + 0.5)
+    local gap_on_backroll = combo.totals.gap + 120
+
+    local clipboard_string = string.format("%.0f\t%.0f\t%.0f\t%.0f\t%d\t%.0f\t%.0f", 
+        combo.totals.damage, 
+        combo.totals.p1_drive, 
+        combo.totals.p1_super, 
+        combo.totals.p1_advantage, 
+        rounded_carry, 
+        combo.totals.gap, 
+        gap_on_backroll)
+    
+    sdk.copy_to_clipboard(clipboard_string)
+    return true
 end
 
 local function was_key_down(i)
@@ -710,7 +725,7 @@ re.on_frame(function()
 							table_flags = table_flags + imgui.table_flags.row_bg
 						end
 						
-						if imgui.begin_table("saved_combos_table", 12, table_flags) then
+						if imgui.begin_table("saved_combos_table", 13, table_flags) then
 							imgui.table_setup_column("Time", nil, 22)
 							imgui.table_setup_column("Char", nil, 22)
 							imgui.table_setup_column("Dmg", nil, 15)
@@ -720,9 +735,10 @@ re.on_frame(function()
 							imgui.table_setup_column("P2Super", nil, 20)
 							imgui.table_setup_column("P1Pos", nil, 15)
 							imgui.table_setup_column("P2Pos", nil, 15)
-							imgui.table_setup_column("Adv", nil, 20)
-							imgui.table_setup_column("Gap", nil, 20)
-							imgui.table_setup_column("Actions", nil, 23)
+							imgui.table_setup_column("Adv", nil, 14)
+							imgui.table_setup_column("Gap", nil, 14)
+							imgui.table_setup_column("", nil, 14)
+							imgui.table_setup_column("", nil, 14)
 							imgui.table_headers_row()
 							
 							for i, combo in ipairs(all_combos) do
@@ -804,7 +820,13 @@ re.on_frame(function()
 								local button_label = "View##combo_" .. i
 								if imgui.small_button(button_label) then
 									imgui.open_popup("combo_details_popup_" .. i)
+								end
 
+								imgui.table_set_column_index(12)
+								local copy_button_label = "Copy##copy_" .. i
+								if imgui.small_button(copy_button_label) then
+									if copy_combo_to_clipboard(combo) then
+									end
 								end
 
 								local function popup_separator()

@@ -15,12 +15,13 @@ p2.relative_range = 0
 local left_wall_dr_splat_pos = -585.2
 local right_wall_dr_splat_pos = 585.2
 
+local training_manager
+local display_data
 local gBattle = sdk.find_type_definition("gBattle")
 local sPlayer = gBattle:get_field("Player"):get_data(nil)
 local cPlayer = sPlayer.mcPlayer
 local BattleTeam = gBattle:get_field("Team"):get_data(nil)
 local cTeam = BattleTeam.mcTeam
-local training_manager = sdk.get_managed_singleton("app.training.TrainingManager")
 local display_player_info = true
 local display_projectile_info = false
 
@@ -190,6 +191,8 @@ local function get_hitbox_range(player, actParam, list)
 end
 
 local function handle_player_data()
+	training_manager = sdk.get_managed_singleton("app.training.TrainingManager")
+	display_data = training_manager._tCommon.SnapShotDatas[0]._DisplayData or {}
 	-- Action Engine
 	local p1Engine = cPlayer[0].mpActParam.ActionPart._Engine
 	local p2Engine = cPlayer[1].mpActParam.ActionPart._Engine
@@ -210,21 +213,20 @@ local function handle_player_data()
 	p2.mMainFrame = p2Engine.mParam.action.ActionFrame.MainFrame
 	p2.mFollowFrame = p2Engine.mParam.action.ActionFrame.FollowFrame
 	-- KD Info from Frame Meter
-	local display_data = training_manager._tCommon.SnapShotDatas[0]._DisplayData
-	p1.whole_frame = display_data.FrameMeterSSData.MeterDatas[0].WholeFrame
-	p1.meaty_frame = display_data.FrameMeterSSData.MeterDatas[0].MeatyFrame
-	p1.apper_frame = display_data.FrameMeterSSData.MeterDatas[0].ApperFrame
+	p1.whole_frame = display_data.FrameMeterSSData.MeterDatas[0].WholeFrame or ""
+	p1.meaty_frame = display_data.FrameMeterSSData.MeterDatas[0].MeatyFrame or ""
+	p1.apper_frame = display_data.FrameMeterSSData.MeterDatas[0].ApperFrame or ""
 	p1.apper_frame_str = string.gsub(p1.apper_frame, "F", "")
 	p1.apper_frame_int = tonumber(p1.apper_frame_str) or 0
-	p1.stun_frame = display_data.FrameMeterSSData.MeterDatas[0].StunFrame
+	p1.stun_frame = display_data.FrameMeterSSData.MeterDatas[0].StunFrame or ""
 	p1.stun_frame_str = string.gsub(p1.stun_frame, "F", "")
 	p1.stun_frame_int = tonumber(p1.stun_frame_str) or 0
-	p2.whole_frame = display_data.FrameMeterSSData.MeterDatas[1].WholeFrame
-	p2.meaty_frame = display_data.FrameMeterSSData.MeterDatas[1].MeatyFrame
-	p2.apper_frame = display_data.FrameMeterSSData.MeterDatas[1].ApperFrame
+	p2.whole_frame = display_data.FrameMeterSSData.MeterDatas[1].WholeFrame or ""
+	p2.meaty_frame = display_data.FrameMeterSSData.MeterDatas[1].MeatyFrame or ""
+	p2.apper_frame = display_data.FrameMeterSSData.MeterDatas[1].ApperFrame or ""
 	p2.apper_frame_str = string.gsub(p2.apper_frame, "F", "")
 	p2.apper_frame_int = tonumber(p2.apper_frame_str) or 0
-	p2.stun_frame = display_data.FrameMeterSSData.MeterDatas[1].StunFrame
+	p2.stun_frame = display_data.FrameMeterSSData.MeterDatas[1].StunFrame or ""
 	p2.stun_frame_str = string.gsub(p2.stun_frame, "F", "")
 	p2.stun_frame_int = tonumber(p2.stun_frame_str) or 0
 	
@@ -266,6 +268,7 @@ local function handle_player_data()
 	p1.pushback = cPlayer[0].vector_zuri.speed.v / 65536.0
 	p1.self_pushback = cPlayer[0].vs_vec_zuri.zuri.speed.v / 65536.0
 	p1.gap = cPlayer[0].vs_distance.v / 65536.0
+	p1.gap_pct = ((p1.gap - 70) / 420) * 100
 	p1.combo_attack_count = cPlayer[1].combo_scale.count
 	p1.combo_hit_count = cPlayer[1].combo_dm_cnt
 	p1.combo_scale_now = cPlayer[1].combo_scale.now
@@ -367,7 +370,7 @@ re.on_frame(function()
 			-- Vitals info
 			imgui.set_next_item_open(true, 2)
 			if imgui.tree_node("Vitals") then
-				imgui.multi_color("Gap:", p1.gap)
+				imgui.multi_color("Gap:", string.format("%.1f", p1.gap) .. " (" .. string.format("%.0f", p1.gap_pct) .. "%)")
 				imgui.multi_color("Advantage:", p1.advantage)
 				if (p1.dir and p1.posX <= left_wall_dr_splat_pos) or (not p1.dir and p1.posX >= right_wall_dr_splat_pos) then
 					imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "", 0XFFFFEA00)

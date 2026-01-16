@@ -9,6 +9,7 @@ local changed
 local training_manager
 local battle_replay_data_manager
 local replay_list
+local replay_id
 local display_size
 local window_pos
 local is_replay = false
@@ -87,7 +88,7 @@ local function get_replay_id()
     if battle_replay_data_manager then
         replay_list = battle_replay_data_manager._ReplayList
         if replay_list and replay_list._items and #replay_list._items > 0 then
-            this.replay_id = replay_list._items[0]:get_field("ReplayID") or ""
+            replay_id = replay_list._items[0]:get_field("ReplayID") or ""
         end
     end
 end
@@ -106,7 +107,7 @@ local function build_hotkeys()
     end
 
     if this.key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_N) then
-        sdk.copy_to_clipboard(this.replay_id)
+        sdk.copy_to_clipboard(replay_id)
         this.key_ready = false
     end
 
@@ -128,17 +129,16 @@ local function build_window()
     set_window_pos()
     imgui.begin_window(MOD_NAME, nil, 1| 0x10160)
     
-    if this.replay_id and this.replay_id ~= "" then
-        local clicked, value = imgui.button(this.replay_id, this.config.prevent_skip)
+    if replay_id and replay_id ~= "" then
+        local clicked, value = imgui.button(replay_id, this.config.prevent_skip)
         if clicked then
-            sdk.copy_to_clipboard(this.replay_id)
+            sdk.copy_to_clipboard(replay_id)
         end
         
         if imgui.is_item_hovered() then
             imgui.begin_tooltip()
             imgui.text("Click to copy")
             imgui.text("Hotkey: Ctrl+N")
-            imgui.text(get_game_mode())
             imgui.end_tooltip()
         end
     end
@@ -151,7 +151,7 @@ re.on_frame(function()
         get_replay_id()        
         build_hotkeys()
 
-        if this.is_opened and this.config.window_show then
+        if this.is_opened and this.config.window_show and replay_id ~= "" then
             build_window() 
         end
     end
