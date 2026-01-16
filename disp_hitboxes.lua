@@ -995,6 +995,7 @@ local function build_toggler_with_opacity(label, config_suffix, opacity_suffix)
 end
 
 local function build_presets_table()
+	imgui.set_next_item_open(true)
 	if not imgui.begin_table("PresetTable", 3) then
 		return
 	end
@@ -1062,6 +1063,7 @@ local function build_presets()
 end
 
 local function build_toggles()
+	imgui.set_next_item_open(true)
 	if imgui.tree_node("Toggle") then
 		if imgui.begin_table("ToggleTable", 3) then
 			imgui.table_setup_column("", nil, 150)
