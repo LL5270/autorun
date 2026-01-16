@@ -954,7 +954,8 @@ end
 
 local function hotkey_toggler()
 	if was_key_down(F1_KEY) then
-		hide_ui = not hide_ui
+		config.options.display_menu = not config.options.display_menu
+		mark_for_save()
 	end
 end
 
