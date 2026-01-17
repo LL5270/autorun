@@ -6,7 +6,7 @@
 
 ![Hitbox Viewer](images/disp_hitboxes.png "Hitbox Viewer")
 
-More customizable version of WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods). Adds memory improvements, preset support, and toggles/opacity sliders for individual P1 and P2 and elements.
+More customizable version of WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods). Adds memory improvements, preset support, and individual toggles/opacity sliders for each element.
 
 Usage:
 * **F1**: Hide/show options menu
