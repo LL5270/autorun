@@ -96,7 +96,7 @@ end
 local function set_window_pos()
     if not window_pos then
         display_size = imgui.get_display_size()
-        window_pos = {display_size.x * .4765, display_size.y * .005}
+        window_pos = {display_size.x * .4762, display_size.y * .004}
         imgui.set_next_window_pos(window_pos)
     end
 end
