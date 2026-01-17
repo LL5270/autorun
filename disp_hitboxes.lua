@@ -6,22 +6,45 @@ local KEY_1 = 0x31
 local KEY_2 = 0x32
 
 local gBattle
-local save_pending
-local save_timer
-local changed
-local config
-local key_ready
+local sPlayer
 local pause_manager
-local pause_type_bit
-local prev_key_states = {}
-local presets = {}
-local preset_names = {}
-local current_preset_name = ""
-local create_new_mode = false
-local new_preset_name = ""
-local rename_mode = false
-local rename_temp_name = ""
-local rename_select_all = false
+
+local this = {}
+this.save_pending = nil
+this.save_timer = nil
+this.changed = nil
+this.config = nil
+this.key_ready = nil
+this.pause_type_bit = nil
+this.prev_key_states = {}
+this.presets = {}
+this.preset_names = {}
+this.current_preset_name = ""
+this.initialized = false
+this.create_new_mode = false
+this.new_preset_name = ""
+this.rename_mode = false
+this.rename_temp_name = ""
+this.rename_select_all = false
+this.world_pos = nil
+this.screenTL = nil
+this.screenTR = nil
+this.screenBL = nil
+this.screenBR = nil
+this.posX = nil
+this.posY = nil
+this.sclX = nil
+this.sclY = nil
+this.vTL = Vector3f.new(0, 0, 0)
+this.vTR = Vector3f.new(0, 0, 0)
+this.vBL = Vector3f.new(0, 0, 0)
+this.vBR = Vector3f.new(0, 0, 0)
+this.vPos = Vector3f.new(0, 0, 0)
+this.world_to_screen = draw.world_to_screen
+this.outline_rect = draw.outline_rect
+this.filled_rect = draw.filled_rect
+this.alpha = nil
+this.string_buffer = {}
 
 local function deep_copy(obj)
 	if type(obj) ~= 'table' then
@@ -32,6 +55,10 @@ local function deep_copy(obj)
 		copy[k] = deep_copy(v)
 	end
 	return copy
+end
+
+local function bitand(a, b)
+	return (a % (b + b) >= b) and b or 0 
 end
 
 local function create_default_config()
@@ -94,18 +121,8 @@ local function create_default_config()
 end
 
 local function mark_for_save()
-	save_pending = true
-	save_timer = SAVE_DELAY
-end
-
-local function save_config()
-	local data_to_save = {
-		presets = presets,
-		current_preset = current_preset_name,
-		config = config
-	}
-	json.dump_file(CONFIG_PATH, data_to_save)
-	save_pending = false
+	this.save_pending = true
+	this.save_timer = SAVE_DELAY
 end
 
 local function validate_config(cfg)
@@ -150,31 +167,41 @@ local function validate_config(cfg)
 	return cfg
 end
 
+local function save_config()
+	local data_to_save = {
+		presets = this.presets,
+		current_preset = this.current_preset_name,
+		config = this.config
+	}
+	json.dump_file(CONFIG_PATH, data_to_save)
+	this.save_pending = false
+end
+
 local function load_config()
 	local loaded = json.load_file(CONFIG_PATH)
 	if loaded then
 		if loaded.presets then
-			presets = loaded.presets
-			preset_names = {}
-			for name, _ in pairs(presets) do
-				table.insert(preset_names, name)
+			this.presets = loaded.presets
+			this.preset_names = {}
+			for name, _ in pairs(this.presets) do
+				table.insert(this.preset_names, name)
 			end
 		end
 		
 		if loaded.current_preset then
-			current_preset_name = loaded.current_preset
+			this.current_preset_name = loaded.current_preset
 		end
 		
 		if loaded.config then
-			config = validate_config(loaded.config)
+			this.config = validate_config(loaded.config)
 		else
-			config = validate_config(loaded)
+			this.config = validate_config(loaded)
 		end
 	else
-		config = create_default_config()
-		presets = {}
-		current_preset_name = ""
-		preset_names = {}
+		this.config = create_default_config()
+		this.presets = {}
+		this.current_preset_name = ""
+		this.preset_names = {}
 		mark_for_save()
 	end
 end
@@ -184,7 +211,7 @@ local function get_dummy_preset_name()
 	local i = 1
 	while true do
 		local candidate = base_name .. i
-		if not presets[candidate] then
+		if not this.presets[candidate] then
 			return candidate
 		end
 		i = i + 1
@@ -193,17 +220,17 @@ end
 
 local function save_current_preset(name)
 	if name and name ~= "" then
-		presets[name] = {
-			p1 = deep_copy(config.p1),
-			p2 = deep_copy(config.p2)
+		this.presets[name] = {
+			p1 = deep_copy(this.config.p1),
+			p2 = deep_copy(this.config.p2)
 		}
 		
-		preset_names = {}
-		for preset_name, _ in pairs(presets) do
-			table.insert(preset_names, preset_name)
+		this.preset_names = {}
+		for preset_name, _ in pairs(this.presets) do
+			table.insert(this.preset_names, preset_name)
 		end
 		
-		current_preset_name = name
+		this.current_preset_name = name
 		mark_for_save()
 		return true
 	end
@@ -211,10 +238,10 @@ local function save_current_preset(name)
 end
 
 local function load_preset(name)
-	if presets[name] then
-		config.p1 = deep_copy(presets[name].p1)
-		config.p2 = deep_copy(presets[name].p2)
-		current_preset_name = name
+	if this.presets[name] then
+		this.config.p1 = deep_copy(this.presets[name].p1)
+		this.config.p2 = deep_copy(this.presets[name].p2)
+		this.current_preset_name = name
 		mark_for_save()
 		return true
 	end
@@ -222,16 +249,16 @@ local function load_preset(name)
 end
 
 local function delete_preset(name)
-	if presets[name] then
-		presets[name] = nil
+	if this.presets[name] then
+		this.presets[name] = nil
 		
-		preset_names = {}
-		for preset_name, _ in pairs(presets) do
-			table.insert(preset_names, preset_name)
+		this.preset_names = {}
+		for preset_name, _ in pairs(this.presets) do
+			table.insert(this.preset_names, preset_name)
 		end
 		
-		if current_preset_name == name then
-			current_preset_name = ""
+		if this.current_preset_name == name then
+			this.current_preset_name = ""
 		end
 		
 		mark_for_save()
@@ -253,21 +280,21 @@ local function rename_preset(old_name, new_name)
 		return false, "New name is the same as the old name"
 	end
 	
-	if presets[new_name] then
+	if this.presets[new_name] then
 		return false, "A preset with this name already exists"
 	end
 	
-	if presets[old_name] then
-		presets[new_name] = presets[old_name]
-		presets[old_name] = nil
+	if this.presets[old_name] then
+		this.presets[new_name] = this.presets[old_name]
+		this.presets[old_name] = nil
 		
-		preset_names = {}
-		for preset_name, _ in pairs(presets) do
-			table.insert(preset_names, preset_name)
+		this.preset_names = {}
+		for preset_name, _ in pairs(this.presets) do
+			table.insert(this.preset_names, preset_name)
 		end
 		
-		if current_preset_name == old_name then
-			current_preset_name = new_name
+		if this.current_preset_name == old_name then
+			this.current_preset_name = new_name
 		end
 		
 		mark_for_save()
@@ -278,69 +305,69 @@ local function rename_preset(old_name, new_name)
 end
 
 local function handle_rename_mode_input()
-	changed, rename_temp_name = imgui.input_text("##preset_name", rename_temp_name, 32)
+	this.changed, this.rename_temp_name = imgui.input_text("##preset_name", this.rename_temp_name, 32)
 end
 
 local function handle_create_new_mode_input()
-	changed, new_preset_name = imgui.input_text("##preset_name", new_preset_name)
+	this.changed, this.new_preset_name = imgui.input_text("##preset_name", this.new_preset_name)
 end
 
 local function update_current_preset_name(new_name)
-	if new_name == current_preset_name then
+	if new_name == this.current_preset_name then
 		return
 	end
 	
 	if new_name == "" then
-		current_preset_name = ""
-		create_new_mode = false
-		rename_mode = false
-	elseif presets[new_name] then
-		current_preset_name = new_name
-		create_new_mode = false
-		rename_mode = false
+		this.current_preset_name = ""
+		this.create_new_mode = false
+		this.rename_mode = false
+	elseif this.presets[new_name] then
+		this.current_preset_name = new_name
+		this.create_new_mode = false
+		this.rename_mode = false
 	else
-		current_preset_name = new_name
-		create_new_mode = true
-		new_preset_name = new_name
-		rename_mode = false
+		this.current_preset_name = new_name
+		this.create_new_mode = true
+		this.new_preset_name = new_name
+		this.rename_mode = false
 	end
 end
 
 local function handle_normal_mode_input()
-	local current_text = current_preset_name or ""
-	changed, current_text = imgui.input_text("##preset_name", current_text)
+	local current_text = this.current_preset_name or ""
+	this.changed, current_text = imgui.input_text("##preset_name", current_text)
 	
-	if changed then
+	if this.changed then
 		update_current_preset_name(current_text)
 	end
 end
 
 local function save_rename()
-	if rename_temp_name == "" then
-	elseif rename_temp_name == current_preset_name then
-		rename_mode = false
-		rename_temp_name = ""
-	elseif presets[rename_temp_name] then
+	if this.rename_temp_name == "" then
+	elseif this.rename_temp_name == this.current_preset_name then
+		this.rename_mode = false
+		this.rename_temp_name = ""
+	elseif this.presets[this.rename_temp_name] then
 	else
-		rename_preset(current_preset_name, rename_temp_name)
-		rename_mode = false
-		rename_temp_name = ""
+		rename_preset(this.current_preset_name, this.rename_temp_name)
+		this.rename_mode = false
+		this.rename_temp_name = ""
 	end
 end
 
 local function handle_rename_mode_buttons()
 	if imgui.button("Rename##save_rename") then
-		if rename_temp_name == "" then
-			rename_mode = false
-			rename_temp_name = ""
-		elseif rename_temp_name == current_preset_name then
-			rename_mode = false
-			rename_temp_name = ""
+		if this.rename_temp_name == "" then
+			this.rename_mode = false
+			this.rename_temp_name = ""
+		elseif this.rename_temp_name == this.current_preset_name then
+			this.rename_mode = false
+			this.rename_temp_name = ""
 		else
-			local success, error_msg = rename_preset(current_preset_name, rename_temp_name)
+			local success, error_msg = rename_preset(this.current_preset_name, this.rename_temp_name)
 			if success then
-				rename_mode = false
-				rename_temp_name = ""
+				this.rename_mode = false
+				this.rename_temp_name = ""
 			end
 		end
 	end
@@ -348,53 +375,53 @@ local function handle_rename_mode_buttons()
 	imgui.same_line()
 	
 	if imgui.button("Cancel##cancel_rename") then
-		rename_mode = false
-		rename_temp_name = ""
+		this.rename_mode = false
+		this.rename_temp_name = ""
 	end
 end
 
 local function save_new_preset()
-	if new_preset_name == "" then
-	elseif presets[new_preset_name] then
-		current_preset_name = new_preset_name
-		create_new_mode = false
-		new_preset_name = ""
+	if this.new_preset_name == "" then
+	elseif this.presets[this.new_preset_name] then
+		this.current_preset_name = this.new_preset_name
+		this.create_new_mode = false
+		this.new_preset_name = ""
 	else
-		save_current_preset(new_preset_name)
-		create_new_mode = false
-		new_preset_name = ""
+		save_current_preset(this.new_preset_name)
+		this.create_new_mode = false
+		this.new_preset_name = ""
 	end
 end
 
 local function cancel_new_preset()
-	if current_preset_name and presets[current_preset_name] then
-		create_new_mode = false
-		new_preset_name = ""
+	if this.current_preset_name and this.presets[this.current_preset_name] then
+		this.create_new_mode = false
+		this.new_preset_name = ""
 	else
-		current_preset_name = ""
-		create_new_mode = false
-		new_preset_name = ""
+		this.current_preset_name = ""
+		this.create_new_mode = false
+		this.new_preset_name = ""
 	end
 end
 
 local function create_new_blank_preset()
-	new_preset_name = get_dummy_preset_name()
-	current_preset_name = new_preset_name
+	this.new_preset_name = get_dummy_preset_name()
+	this.current_preset_name = this.new_preset_name
 end
 
 local function cancel_blank_preset()
-	if current_preset_name and presets[current_preset_name] then
-		create_new_mode = false
-		new_preset_name = ""
+	if this.current_preset_name and this.presets[this.current_preset_name] then
+		this.create_new_mode = false
+		this.new_preset_name = ""
 	else
-		current_preset_name = ""
-		create_new_mode = false
-		new_preset_name = ""
+		this.current_preset_name = ""
+		this.create_new_mode = false
+		this.new_preset_name = ""
 	end
 end
 
 local function handle_create_new_mode_buttons()
-	if new_preset_name == "" then
+	if this.new_preset_name == "" then
 		if imgui.button("New##new_blank") then
 			create_new_blank_preset()
 		end
@@ -422,14 +449,14 @@ local function is_preset_loaded(preset_name)
 		return false
 	end
 	
-	if not presets[preset_name] then
+	if not this.presets[preset_name] then
 		return false
 	end
 	
-	local preset = presets[preset_name]
+	local preset = this.presets[preset_name]
 	
 	for _, player in ipairs({"p1", "p2"}) do
-		local current_toggle = config[player].toggle
+		local current_toggle = this.config[player].toggle
 		local preset_toggle = preset[player].toggle
 		
 		for toggle_name, preset_value in pairs(preset_toggle) do
@@ -446,7 +473,7 @@ local function is_preset_loaded(preset_name)
 	end
 	
 	for _, player in ipairs({"p1", "p2"}) do
-		local current_opacity = config[player].opacity
+		local current_opacity = this.config[player].opacity
 		local preset_opacity = preset[player].opacity
 		
 		for opacity_name, preset_value in pairs(preset_opacity) do
@@ -467,57 +494,57 @@ end
 
 local function handle_loaded_preset_buttons()
 	if imgui.button("Save##save_preset") then
-		save_current_preset(current_preset_name)
+		save_current_preset(this.current_preset_name)
 	end
 	
 	imgui.same_line()
 	if imgui.button("Rename##rename_current") then
-		rename_mode = true
-		rename_temp_name = current_preset_name
+		this.rename_mode = true
+		this.rename_temp_name = this.current_preset_name
 	end
 	
 	imgui.same_line()
 	if imgui.button("Delete##delete_current") then
-		delete_preset(current_preset_name)
-		current_preset_name = ""
-		create_new_mode = false
-		rename_mode = false
+		delete_preset(this.current_preset_name)
+		this.current_preset_name = ""
+		this.create_new_mode = false
+		this.rename_mode = false
 	end
 end
 
 local function handle_unloaded_preset_buttons()
 	if imgui.button("Load##load_preset") then
-		load_preset(current_preset_name)
+		load_preset(this.current_preset_name)
 	end
 end
 
 local function handle_empty_preset_buttons()
 	if imgui.button("New##create_new") then
-		create_new_mode = true
-		new_preset_name = get_dummy_preset_name()
-		current_preset_name = new_preset_name
+		this.create_new_mode = true
+		this.new_preset_name = get_dummy_preset_name()
+		this.current_preset_name = this.new_preset_name
 	end
 end
 
 local function handle_fallback_buttons()
 	if imgui.button("New##create_new_fallback") then
-		create_new_mode = true
-		new_preset_name = get_dummy_preset_name()
-		current_preset_name = new_preset_name
+		this.create_new_mode = true
+		this.new_preset_name = get_dummy_preset_name()
+		this.current_preset_name = this.new_preset_name
 	end
 end
 
 local function preset_has_unsaved_changes(preset_name)
-	if not preset_name or preset_name == "" or not presets[preset_name] then
+	if not preset_name or preset_name == "" or not this.presets[preset_name] then
 		return false
 	end
 	
-	local preset = presets[preset_name]
+	local preset = this.presets[preset_name]
 	
 	for _, player in ipairs({"p1", "p2"}) do
-		local current_toggle = config[player].toggle
+		local current_toggle = this.config[player].toggle
 		local preset_toggle = preset[player].toggle
-		local current_opacity = config[player].opacity
+		local current_opacity = this.config[player].opacity
 		local preset_opacity = preset[player].opacity
 		
 		for toggle_name, preset_value in pairs(preset_toggle) do
@@ -549,18 +576,18 @@ local function preset_has_unsaved_changes(preset_name)
 end
 
 local function handle_normal_mode_buttons()
-	if current_preset_name ~= "" and presets[current_preset_name] ~= nil then
-		local has_unsaved = preset_has_unsaved_changes(current_preset_name)
+	if this.current_preset_name ~= "" and this.presets[this.current_preset_name] ~= nil then
+		local has_unsaved = preset_has_unsaved_changes(this.current_preset_name)
 		
 		if has_unsaved then
 			if imgui.button("Save##save_preset_unsaved") then
-				save_current_preset(current_preset_name)
+				save_current_preset(this.current_preset_name)
 			end
 		
 			imgui.same_line()
 			
 			if imgui.button("Discard##load_preset") then
-				load_preset(current_preset_name)
+				load_preset(this.current_preset_name)
 			end
 		else
 			imgui.text("")
@@ -569,102 +596,90 @@ local function handle_normal_mode_buttons()
 		imgui.same_line()
 		
 		if imgui.button("Rename##rename_current") then
-			rename_mode = true
-			rename_temp_name = current_preset_name
+			this.rename_mode = true
+			this.rename_temp_name = this.current_preset_name
 		end
 		
 		imgui.same_line()
 		
 		if imgui.button("New##create_new") then
-			create_new_mode = true
-			new_preset_name = get_dummy_preset_name()
-			current_preset_name = new_preset_name
+			this.create_new_mode = true
+			this.new_preset_name = get_dummy_preset_name()
+			this.current_preset_name = this.new_preset_name
 		end
 		
-	elseif current_preset_name == "" then
+	elseif this.current_preset_name == "" then
 		if imgui.button("New##create_new") then
-			create_new_mode = true
-			new_preset_name = get_dummy_preset_name()
-			current_preset_name = new_preset_name
+			this.create_new_mode = true
+			this.new_preset_name = get_dummy_preset_name()
+			this.current_preset_name = this.new_preset_name
 		end
 	else
 		if imgui.button("Save New##save_new_from_text") then
-			save_current_preset(current_preset_name)
-			create_new_mode = false
+			save_current_preset(this.current_preset_name)
+			this.create_new_mode = false
 		end
 		
 		imgui.same_line()
 		
 		if imgui.button("New##create_new_fallback") then
-			create_new_mode = true
-			new_preset_name = get_dummy_preset_name()
-			current_preset_name = new_preset_name
+			this.create_new_mode = true
+			this.new_preset_name = get_dummy_preset_name()
+			this.current_preset_name = this.new_preset_name
 		end
 	end
 end
 
 local function preset_mode_handler()
-	if rename_mode then
+	if this.rename_mode then
 		handle_rename_mode_buttons()
-	elseif create_new_mode then
+	elseif this.create_new_mode then
 		handle_create_new_mode_buttons()
 	else
 		handle_normal_mode_buttons()
 	end
 end
 
--- TODO Hover functionality
-local function hover_tree_node(label)
-	local is_open = imgui.tree_node(label)
-	
-	if not is_open and imgui.is_item_hovered() then
-		imgui.set_next_item_open(true)
-		is_open = imgui.tree_node(label)
-	end
-	
-	return is_open
-end
-
 local function reset_all_default(player)
 	local default = create_default_config()
 	if player == nil then
-		config.p1 = deep_copy(default.p1)
-		config.p2 = deep_copy(default.p2)
+		this.config.p1 = deep_copy(default.p1)
+		this.config.p2 = deep_copy(default.p2)
 	elseif player == "p1" or player == "p2" then
-		config[player] = deep_copy(default[player])
+		this.config[player] = deep_copy(default[player])
 	end
 	mark_for_save()
-	return config
+	return this.config
 end
 
 local function reset_toggle_default(player)
 	local default = create_default_config()
 	if player == nil then
-		config.p1.toggle = deep_copy(default.p1.toggle)
-		config.p2.toggle = deep_copy(default.p2.toggle)
+		this.config.p1.toggle = deep_copy(default.p1.toggle)
+		this.config.p2.toggle = deep_copy(default.p2.toggle)
 	elseif player == "p1" or player == "p2" then
-		config[player].toggle = deep_copy(default[player].toggle)
+		this.config[player].toggle = deep_copy(default[player].toggle)
 	end
 	mark_for_save()
-	return config
+	return this.config
 end
 
 local function reset_opacity_default(player)
 	local default = create_default_config()
 	if player == nil then
-		config.p1.opacity = deep_copy(default.p1.opacity)
-		config.p2.opacity = deep_copy(default.p2.opacity)
+		this.config.p1.opacity = deep_copy(default.p1.opacity)
+		this.config.p2.opacity = deep_copy(default.p2.opacity)
 	elseif player == "p1" or player == "p2" then
-		config[player].opacity = deep_copy(default[player].opacity)
+		this.config[player].opacity = deep_copy(default[player].opacity)
 	end
 	mark_for_save()
-	return config
+	return this.config
 end
 
 local function apply_opacity(alphaInt, colorWithoutAlpha)
 	alphaInt = math.max(0, math.min(100, alphaInt))
-	local alpha = math.floor((alphaInt / 100) * 255)
-	return alpha * 0x1000000 + colorWithoutAlpha
+	this.alpha = math.floor((alphaInt / 100) * 255)
+	return this.alpha * 0x1000000 + colorWithoutAlpha
 end
 
 local function get_pause_type_bit()
@@ -672,38 +687,26 @@ local function get_pause_type_bit()
 		pause_manager = sdk.get_managed_singleton("app.PauseManager")
 	end
 	
-	pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
+	this.pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
 end
 
 local function is_pause_menu_closed()
 	get_pause_type_bit()
-	if pause_type_bit == 64 or pause_type_bit == 2112 then
+	if this.pause_type_bit == 64 or this.pause_type_bit == 2112 then
 		return true
 	end
 end
 
-local function bitand(a, b)
-	local result = 0
-	local bitval = 1
-	while a > 0 and b > 0 do
-	  if a % 2 == 1 and b % 2 == 1 then
-		  result = result + bitval
-	  end
-	  bitval = bitval * 2
-	  a = math.floor(a/2)
-	  b = math.floor(b/2)
-	end
-	return result
+local function get_prev_push_bit()
+	sPlayer = gBattle:get_field("Player"):get_data(nil)
+	return sPlayer.prev_no_push_bit
 end
 
 local function reverse_pairs(aTable)
 	local keys = {}
-
 	for k,v in pairs(aTable) do keys[#keys+1] = k end
 	table.sort(keys, function (a, b) return a>b end)
-
 	local n = 0
-
 	return function ( )
 		n = n + 1
 		if n > #keys then return nil, nil end
@@ -712,195 +715,298 @@ local function reverse_pairs(aTable)
 end
 
 local function draw_hitboxes(work, actParam, player_config)
-	local col = actParam.Collision
-	for j, rect in reverse_pairs(col.Infos._items) do
-		if rect ~= nil then
-			local posX = rect.OffsetX.v / 6553600.0
-			local posY = rect.OffsetY.v / 6553600.0
-			local sclX = rect.SizeX.v / 6553600.0 * 2
-			local sclY = rect.SizeY.v / 6553600.0 * 2
-			posX = posX - sclX / 2
-			posY = posY - sclY / 2
+    local col = actParam.Collision
 
-			local screenTL = draw.world_to_screen(Vector3f.new(posX - sclX / 2, posY + sclY / 2, 0))
-			local screenTR = draw.world_to_screen(Vector3f.new(posX + sclX / 2, posY + sclY / 2, 0))
-			local screenBL = draw.world_to_screen(Vector3f.new(posX - sclX / 2, posY - sclY / 2, 0))
-			local screenBR = draw.world_to_screen(Vector3f.new(posX + sclX / 2, posY - sclY / 2, 0))
+    for j, rect in reverse_pairs(col.Infos._items) do
+        if rect ~= nil then
+            this.posX = rect.OffsetX.v / 6553600.0
+            this.posY = rect.OffsetY.v / 6553600.0
+            this.sclX = rect.SizeX.v / 6553600.0 * 2
+            this.sclY = rect.SizeY.v / 6553600.0 * 2
 
-			if screenTL and screenTR and screenBL and screenBR then
-				local finalPosX = (screenTL.x + screenTR.x) / 2
-				local finalPosY = (screenBL.y + screenTL.y) / 2
-				local finalSclX = (screenTR.x - screenTL.x)
-				local finalSclY = (screenTL.y - screenBL.y)
-				
-				if rect:get_field("HitPos") ~= nil then
-					if rect.TypeFlag > 0 then
-						if player_config.toggle.hitboxes_outline then
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.hitbox_outline, 0x0040C0))
-						end
-						if player_config.toggle.hitboxes then
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.hitbox, 0x0040C0))
-						end
-						
-						if player_config.toggle.properties then
-							local hitboxExceptions = "Can't Hit "
-							local comboOnly = "Combo "
-							
-							if bitand(rect.CondFlag, 16) == 16 then hitboxExceptions = hitboxExceptions .. "Standing, " end
-							if bitand(rect.CondFlag, 32) == 32 then hitboxExceptions = hitboxExceptions .. "Crouching, " end
-							if bitand(rect.CondFlag, 64) == 64 then hitboxExceptions = hitboxExceptions .. "Airborne, " end
-							if bitand(rect.CondFlag, 256) == 256 then hitboxExceptions = hitboxExceptions .. "Forward, " end
-							if bitand(rect.CondFlag, 512) == 512 then hitboxExceptions = hitboxExceptions .. "Backwards, " end
-							if bitand(rect.CondFlag, 262144) == 262144 then comboOnly = comboOnly .. "Only" end
-							if bitand(rect.CondFlag, 524288) == 524288 then comboOnly = comboOnly .. "Only" end
-							
-							local fullString = ""
-							if string.len(hitboxExceptions) > 10 then
-								fullString = fullString .. string.sub(hitboxExceptions, 1, -3) .. "\n"
-							end
-							if string.len(comboOnly) > 6 then
-								fullString = fullString .. comboOnly .. "\n"
-							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 
-								apply_opacity(player_config.opacity.properties, 0xFFFFFF))
-						end
-					
-					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) then
-						if player_config.toggle.throwboxes_outline then
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.throwbox_outline, 0xD080FF))
-						end
-						if player_config.toggle.throwboxes then
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.throwbox, 0xD080FF))
-						end
-						
-						if player_config.toggle.properties then
-							local hitboxExceptions = "Can't Hit "
-							local comboOnly = "Combo "
-							
-							if bitand(rect.CondFlag, 16) == 16 then hitboxExceptions = hitboxExceptions .. "Standing, " end
-							if bitand(rect.CondFlag, 32) == 32 then hitboxExceptions = hitboxExceptions .. "Crouching, " end
-							if bitand(rect.CondFlag, 64) == 64 then hitboxExceptions = hitboxExceptions .. "Airborne, " end
-							if bitand(rect.CondFlag, 256) == 256 then hitboxExceptions = hitboxExceptions .. "Forward, " end
-							if bitand(rect.CondFlag, 512) == 512 then hitboxExceptions = hitboxExceptions .. "Backwards, " end
-							if bitand(rect.CondFlag, 262144) == 262144 then comboOnly = comboOnly .. "Only" end
-							if bitand(rect.CondFlag, 524288) == 524288 then comboOnly = comboOnly .. "Only" end
-							
-							local fullString = ""
-							if string.len(hitboxExceptions) > 10 then
-								fullString = fullString .. string.sub(hitboxExceptions, 1, -3) .. "\n"
-							end
-							if string.len(comboOnly) > 6 then
-								fullString = fullString .. comboOnly .. "\n"
-							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 
-								apply_opacity(player_config.opacity.properties, 0xFFFFFF))
-						end
-					
-					elseif rect.GuardBit == 0 then
-						if player_config.toggle.clashboxes_outline then
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.clashbox_outline, 0x3891E6))
-						end
-						if player_config.toggle.clashboxes then
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.clashbox, 0x3891E6))
-						end
-					
-					else
-						if player_config.toggle.proximityboxes_outline then
-							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.proximitybox_outline, 0x5b5b5b))
-						end
-						if player_config.toggle.proximityboxes then
-							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-								apply_opacity(player_config.opacity.proximitybox, 0x5b5b5b))
-						end
-					end
-				
-				elseif rect:get_field("Attr") ~= nil then
-					if player_config.toggle.pushboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-							apply_opacity(player_config.opacity.pushbox_outline, 0x00FFFF))
-					end
-					if player_config.toggle.pushboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-							apply_opacity(player_config.opacity.pushbox, 0x00FFFF))
-					end
-				
-				elseif rect:get_field("HitNo") ~= nil then
-					if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
-						if rect.Type == 2 or rect.Type == 1 then
-							if player_config.toggle.hurtboxes_outline then
-								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-									apply_opacity(player_config.opacity.hurtbox_outline, 0xFF0080))
-							end
-							if player_config.toggle.hurtboxes then
-								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-									apply_opacity(player_config.opacity.hurtbox, 0xFF0080))
-							end
-						else
-							if player_config.toggle.hurtboxes_outline then
-								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-									apply_opacity(player_config.opacity.hurtbox_outline, 0x00FF00))
-							end
-							if player_config.toggle.hurtboxes then
-								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-									apply_opacity(player_config.opacity.hurtbox, 0x00FF00))
-							end
-						end
-						
-						if player_config.toggle.properties then
-							local hurtInvuln = ""
-							local hurtImmune = ""
-							
-							if rect.TypeFlag == 1 then hurtInvuln = "Projectile" end
-							if rect.TypeFlag == 2 then hurtInvuln = "Strike" end
-							
-							if bitand(rect.Immune, 1) == 1 then hurtImmune = hurtImmune .. "Stand, " end
-							if bitand(rect.Immune, 2) == 2 then hurtImmune = hurtImmune .. "Crouch, " end
-							if bitand(rect.Immune, 4) == 4 then hurtImmune = hurtImmune .. "Air, " end
-							if bitand(rect.Immune, 64) == 64 then hurtImmune = hurtImmune .. "Behind, " end
-							if bitand(rect.Immune, 128) == 128 then hurtImmune = hurtImmune .. "Reverse, " end
-							
-							local fullString = ""
-							if string.len(hurtInvuln) > 0 then
-								fullString = fullString .. hurtInvuln .. " Invulnerable\n"
-							end
-							if string.len(hurtImmune) > 0 then
-								fullString = fullString .. string.sub(hurtImmune, 1, -3) .. " Attack Intangible\n"
-							end
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY), 
-								apply_opacity(player_config.opacity.properties, 0xFFFFFF))
-						end
-					end
-				
-				elseif rect:get_field("KeyData") ~= nil then
-					if player_config.toggle.uniqueboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-							apply_opacity(player_config.opacity.uniquebox_outline, 0xEEFF00))
-					end
-					if player_config.toggle.uniqueboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-							apply_opacity(player_config.opacity.uniquebox, 0xEEFF00))
-					end
-				
-				else
-					if player_config.toggle.throwhurtboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-							apply_opacity(player_config.opacity.throwhurtbox_outline, 0xFF0000))
-					end
-					if player_config.toggle.throwhurtboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY, 
-							apply_opacity(player_config.opacity.throwhurtbox, 0xFF0000))
-					end
-				end
-			end
-		end
-	end
+            this.posX = this.posX - this.sclX / 2
+            this.posY = this.posY - this.sclY / 2
+
+            this.vTL.x = this.posX - this.sclX / 2
+            this.vTL.y = this.posY + this.sclY / 2
+            this.vTL.z = 0
+            
+            this.vTR.x = this.posX + this.sclX / 2
+            this.vTR.y = this.posY + this.sclY / 2
+            this.vTR.z = 0
+            
+            this.vBL.x = this.posX - this.sclX / 2
+            this.vBL.y = this.posY - this.sclY / 2
+            this.vBL.z = 0
+            
+            this.vBR.x = this.posX + this.sclX / 2
+            this.vBR.y = this.posY - this.sclY / 2
+            this.vBR.z = 0
+
+            this.screenTL = draw.world_to_screen(this.vTL)
+            this.screenTR = draw.world_to_screen(this.vTR)
+            this.screenBL = draw.world_to_screen(this.vBL)
+            this.screenBR = draw.world_to_screen(this.vBR)
+
+            if this.screenTL and this.screenTR and this.screenBL and this.screenBR then
+                local finalPosX = (this.screenTL.x + this.screenTR.x) / 2
+                local finalPosY = (this.screenBL.y + this.screenTL.y) / 2
+                local finalSclX = (this.screenTR.x - this.screenTL.x)
+                local finalSclY = (this.screenTL.y - this.screenBL.y)
+
+                if rect:get_field("HitPos") ~= nil then
+                    if rect.TypeFlag > 0 then
+                        if player_config.toggle.hitboxes_outline then
+                            draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.hitbox_outline, 0x0040C0))
+                        end
+                        if player_config.toggle.hitboxes then
+                            draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.hitbox, 0x0040C0))
+                        end
+
+                        if player_config.toggle.properties then
+                            -- Use table for string building instead of concatenation
+                            local buffer_idx = 0
+                            local has_exceptions = false
+                            local has_combo = false
+
+                            -- Build exceptions string
+                            if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
+                               bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
+                               bitand(rect.CondFlag, 512) == 512 then
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "Can't Hit "
+                                
+                                if bitand(rect.CondFlag, 16) == 16 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Standing, " 
+                                end
+                                if bitand(rect.CondFlag, 32) == 32 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Crouching, " 
+                                end
+                                if bitand(rect.CondFlag, 64) == 64 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Airborne, " 
+                                end
+                                if bitand(rect.CondFlag, 256) == 256 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Forward, " 
+                                end
+                                if bitand(rect.CondFlag, 512) == 512 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Backwards, " 
+                                end
+                                
+                                -- Remove trailing comma and space
+                                this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "\n"
+                                has_exceptions = true
+                            end
+
+                            if bitand(rect.CondFlag, 262144) == 262144 or bitand(rect.CondFlag, 524288) == 524288 then
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "Combo Only\n"
+                                has_combo = true
+                            end
+
+                            if has_exceptions or has_combo then
+                                local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
+                                draw.text(fullString, finalPosX, (finalPosY + finalSclY),
+                                    apply_opacity(player_config.opacity.properties, 0xFFFFFF))
+                            end
+                        end
+
+                    elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) then
+                        if player_config.toggle.throwboxes_outline then
+                            draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.throwbox_outline, 0xD080FF))
+                        end
+                        if player_config.toggle.throwboxes then
+                            draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.throwbox, 0xD080FF))
+                        end
+
+                        if player_config.toggle.properties then
+                            local buffer_idx = 0
+                            local has_exceptions = false
+                            local has_combo = false
+
+                            if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
+                               bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
+                               bitand(rect.CondFlag, 512) == 512 then
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "Can't Hit "
+                                
+                                if bitand(rect.CondFlag, 16) == 16 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Standing, " 
+                                end
+                                if bitand(rect.CondFlag, 32) == 32 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Crouching, " 
+                                end
+                                if bitand(rect.CondFlag, 64) == 64 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Airborne, " 
+                                end
+                                if bitand(rect.CondFlag, 256) == 256 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Forward, " 
+                                end
+                                if bitand(rect.CondFlag, 512) == 512 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Backwards, " 
+                                end
+                                
+                                this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "\n"
+                                has_exceptions = true
+                            end
+
+                            if bitand(rect.CondFlag, 262144) == 262144 or bitand(rect.CondFlag, 524288) == 524288 then
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "Combo Only\n"
+                                has_combo = true
+                            end
+
+                            if has_exceptions or has_combo then
+                                local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
+                                draw.text(fullString, finalPosX, (finalPosY + finalSclY),
+                                    apply_opacity(player_config.opacity.properties, 0xFFFFFF))
+                            end
+                        end
+
+                    elseif rect.GuardBit == 0 then
+                        if player_config.toggle.clashboxes_outline then
+                            draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.clashbox_outline, 0x3891E6))
+                        end
+                        if player_config.toggle.clashboxes then
+                            draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.clashbox, 0x3891E6))
+                        end
+
+                    else
+                        if player_config.toggle.proximityboxes_outline then
+                            draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.proximitybox_outline, 0x5b5b5b))
+                        end
+                        if player_config.toggle.proximityboxes then
+                            draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.proximitybox, 0x5b5b5b))
+                        end
+                    end
+
+                elseif rect:get_field("Attr") ~= nil then
+                    if player_config.toggle.pushboxes_outline then
+                        draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                            apply_opacity(player_config.opacity.pushbox_outline, 0x00FFFF))
+                    end
+                    if player_config.toggle.pushboxes then
+                        draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                            apply_opacity(player_config.opacity.pushbox, 0x00FFFF))
+                    end
+
+                elseif rect:get_field("HitNo") ~= nil then
+                    if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
+                        if rect.Type == 2 or rect.Type == 1 then
+                            if player_config.toggle.hurtboxes_outline then
+                                draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                    apply_opacity(player_config.opacity.hurtbox_outline, 0xFF0080))
+                            end
+                            if player_config.toggle.hurtboxes then
+                                draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                    apply_opacity(player_config.opacity.hurtbox, 0xFF0080))
+                            end
+                        else
+                            if player_config.toggle.hurtboxes_outline then
+                                draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                    apply_opacity(player_config.opacity.hurtbox_outline, 0x00FF00))
+                            end
+                            if player_config.toggle.hurtboxes then
+                                draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                    apply_opacity(player_config.opacity.hurtbox, 0x00FF00))
+                            end
+                        end
+
+                        if player_config.toggle.properties then
+                            local buffer_idx = 0
+
+                            if rect.TypeFlag == 1 then
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "Projectile Invulnerable\n"
+                            elseif rect.TypeFlag == 2 then
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = "Strike Invulnerable\n"
+                            end
+
+                            local has_immune = false
+                            if bitand(rect.Immune, 1) == 1 or bitand(rect.Immune, 2) == 2 or 
+                               bitand(rect.Immune, 4) == 4 or bitand(rect.Immune, 64) == 64 or 
+                               bitand(rect.Immune, 128) == 128 then
+                                has_immune = true
+                                
+                                if bitand(rect.Immune, 1) == 1 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Stand, " 
+                                end
+                                if bitand(rect.Immune, 2) == 2 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Crouch, " 
+                                end
+                                if bitand(rect.Immune, 4) == 4 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Air, " 
+                                end
+                                if bitand(rect.Immune, 64) == 64 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Behind, " 
+                                end
+                                if bitand(rect.Immune, 128) == 128 then 
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Reverse, " 
+                                end
+                                
+                                this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
+                                buffer_idx = buffer_idx + 1
+                                this.string_buffer[buffer_idx] = " Attack Intangible\n"
+                            end
+
+                            if buffer_idx > 0 then
+                                local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
+                                draw.text(fullString, finalPosX, (finalPosY + finalSclY),
+                                    apply_opacity(player_config.opacity.properties, 0xFFFFFF))
+                            end
+                        end
+                    end
+
+                elseif rect:get_field("KeyData") ~= nil then
+                    if player_config.toggle.uniqueboxes_outline then
+                        draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                            apply_opacity(player_config.opacity.uniquebox_outline, 0xEEFF00))
+                    end
+                    if player_config.toggle.uniqueboxes then
+                        draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                            apply_opacity(player_config.opacity.uniquebox, 0xEEFF00))
+                    end
+
+                else
+                    if player_config.toggle.throwhurtboxes_outline then
+                        draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                            apply_opacity(player_config.opacity.throwhurtbox_outline, 0xFF0000))
+                    end
+                    if player_config.toggle.throwhurtboxes then
+                        draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                            apply_opacity(player_config.opacity.throwhurtbox, 0xFF0000))
+                    end
+                end
+            end
+        end
+    end
 end
 
 local function toggle_setter(label, val)
@@ -922,40 +1028,41 @@ end
 
 local function init_config()
 	load_config()
-	if current_preset_name == "" then
-		current_preset_name = get_dummy_preset_name()
+	if this.current_preset_name == "" then
+		this.current_preset_name = get_dummy_preset_name()
 	end
+	this.initialized = true
 end
 
 local function save_handler()
-	if save_pending then
-		save_timer = save_timer - (1.0 / 60.0)
-		if save_timer <= 0 then
+	if this.save_pending then
+		this.save_timer = this.save_timer - (1.0 / 60.0)
+		if this.save_timer <= 0 then
 			save_config()
 		end
 	end
 end
 
 local function build_hotkeys()
-	if not key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then
-		key_ready = true
+	if not this.key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then
+		this.key_ready = true
 	end
 
-	if key_ready and reframework:is_key_down(KEY_F1) then
-		config.options.display_menu = not config.options.display_menu
-		key_ready = false
+	if this.key_ready and reframework:is_key_down(KEY_F1) then
+		this.config.options.display_menu = not this.config.options.display_menu
+		this.key_ready = false
 		mark_for_save()
 	end
 
-	if key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_1) then
-		config.p1.toggle.toggle_show = not config.p1.toggle.toggle_show
-		key_ready = false
+	if this.key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_1) then
+		this.config.p1.toggle.toggle_show = not this.config.p1.toggle.toggle_show
+		this.key_ready = false
 		mark_for_save()
 	end
 
-	if key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_2) then
-		config.p2.toggle.toggle_show = not config.p2.toggle.toggle_show
-		key_ready = false
+	if this.key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_2) then
+		this.config.p2.toggle.toggle_show = not this.config.p2.toggle.toggle_show
+		this.key_ready = false
 		mark_for_save()
 	end
 end
@@ -967,29 +1074,29 @@ local function build_toggler_with_opacity(label, config_suffix, opacity_suffix)
 	imgui.text(label)
 	
 	imgui.table_set_column_index(1)
-	if config.p1.toggle.toggle_show then
+	if this.config.p1.toggle.toggle_show then
 		local id = "##p1_" .. config_suffix
-		changed, config.p1.toggle[config_suffix] = toggle_setter(id, config.p1.toggle[config_suffix])
+		this.changed, this.config.p1.toggle[config_suffix] = toggle_setter(id, this.config.p1.toggle[config_suffix])
 		
-		if opacity_suffix and config.p1.opacity[opacity_suffix] ~= nil and config.p1.toggle[config_suffix] then
+		if opacity_suffix and this.config.p1.opacity[opacity_suffix] ~= nil and this.config.p1.toggle[config_suffix] then
 			imgui.same_line()
 			imgui.push_item_width(70)
-			changed, config.p1.opacity[opacity_suffix] = opacity_setter("##p1_" .. opacity_suffix .. "Opacity", 
-				config.p1.opacity[opacity_suffix], 0.5, 0, 100)
+			this.changed, this.config.p1.opacity[opacity_suffix] = opacity_setter("##p1_" .. opacity_suffix .. "Opacity", 
+				this.config.p1.opacity[opacity_suffix], 0.5, 0, 100)
 			imgui.pop_item_width()
 		end
 	end
 	
 	imgui.table_set_column_index(2)
-	if config.p2.toggle.toggle_show then
+	if this.config.p2.toggle.toggle_show then
 		local id = "##p2_" .. config_suffix
-		changed, config.p2.toggle[config_suffix] = toggle_setter(id, config.p2.toggle[config_suffix])
+		this.changed, this.config.p2.toggle[config_suffix] = toggle_setter(id, this.config.p2.toggle[config_suffix])
 		
-		if opacity_suffix and config.p2.opacity[opacity_suffix] ~= nil and config.p2.toggle[config_suffix] then
+		if opacity_suffix and this.config.p2.opacity[opacity_suffix] ~= nil and this.config.p2.toggle[config_suffix] then
 			imgui.same_line()
 			imgui.push_item_width(70)
-			changed, config.p2.opacity[opacity_suffix] = opacity_setter("##p2_" .. opacity_suffix .. "Opacity", 
-				config.p2.opacity[opacity_suffix], 0.5, 0, 100)
+			this.changed, this.config.p2.opacity[opacity_suffix] = opacity_setter("##p2_" .. opacity_suffix .. "Opacity", 
+				this.config.p2.opacity[opacity_suffix], 0.5, 0, 100)
 			imgui.pop_item_width()
 		end
 	end
@@ -1006,7 +1113,7 @@ local function build_presets_table()
 	imgui.table_setup_column("", nil, 60)
 	imgui.table_headers_row()
 	
-	for _, preset_name in ipairs(preset_names) do
+	for _, preset_name in ipairs(this.preset_names) do
 		imgui.table_next_row()
 		
 		imgui.table_set_column_index(0)
@@ -1015,19 +1122,19 @@ local function build_presets_table()
 		imgui.table_set_column_index(1)
 		if imgui.button("Load##load_" .. preset_name) then
 			load_preset(preset_name)
-			create_new_mode = false
-			rename_mode = false
-			new_preset_name = ""
-			rename_temp_name = ""
+			this.create_new_mode = false
+			this.rename_mode = false
+			this.new_preset_name = ""
+			this.rename_temp_name = ""
 		end
 		
 		imgui.table_set_column_index(2)
 		if imgui.button("Delete##delete_" .. preset_name) then
 			delete_preset(preset_name)
-			if current_preset_name == preset_name then
-				current_preset_name = ""
-				create_new_mode = false
-				rename_mode = false
+			if this.current_preset_name == preset_name then
+				this.current_preset_name = ""
+				this.create_new_mode = false
+				this.rename_mode = false
 			end
 			break
 		end
@@ -1045,9 +1152,9 @@ local function build_presets()
 	imgui.same_line()
 	imgui.push_item_width(100)
 	
-	if rename_mode then
+	if this.rename_mode then
 		handle_rename_mode_input()
-	elseif create_new_mode then
+	elseif this.create_new_mode then
 		handle_create_new_mode_input()
 	else
 		handle_normal_mode_input()
@@ -1078,20 +1185,20 @@ local function build_toggles()
 			
 			imgui.table_set_column_index(1)
 			imgui.text("P1")
-			imgui.same_line()
-			local cursor_pos = imgui.get_cursor_pos()
-			imgui.set_cursor_pos(Vector2f.new(cursor_pos.x + 20, cursor_pos.y))
-			changed, config.p1.toggle.toggle_show = toggle_setter("##p1_HideAllHeader", config.p1.toggle.toggle_show)
-			
+			-- imgui.same_line()
+			-- local cursor_pos = imgui.get_cursor_pos()
+			-- imgui.set_cursor_pos(Vector2f.new(cursor_pos.x + 20, cursor_pos.y))
+			-- this.changed, this.config.p1.toggle.toggle_show = toggle_setter("##p1_HideAllHeader", this.config.p1.toggle.toggle_show)
+			-- 
 			imgui.table_set_column_index(2)
 			imgui.text("P2")
-			imgui.same_line()
-			cursor_pos = imgui.get_cursor_pos()
-			imgui.set_cursor_pos(Vector2f.new(cursor_pos.x + 20, cursor_pos.y))
-			changed, config.p2.toggle.toggle_show = toggle_setter("##p2_HideAllHeader", config.p2.toggle.toggle_show)
-			
+			-- imgui.same_line()
+			-- cursor_pos = imgui.get_cursor_pos()
+			-- imgui.set_cursor_pos(Vector2f.new(cursor_pos.x + 20, cursor_pos.y))
+			-- this.changed, this.config.p2.toggle.toggle_show = toggle_setter("##p2_HideAllHeader", this.config.p2.toggle.toggle_show)
+			-- 
 
-			if config.p1.toggle.toggle_show or config.p2.toggle.toggle_show then
+			if this.config.p1.toggle.toggle_show or this.config.p2.toggle.toggle_show then
 				build_toggler_with_opacity("Hitbox", "hitboxes", "hitbox")
 				build_toggler_with_opacity("Hitbox Outline", "hitboxes_outline", "hitbox_outline")
 				build_toggler_with_opacity("Hurtbox", "hurtboxes", "hurtbox")
@@ -1117,11 +1224,11 @@ local function build_toggles()
 				imgui.text("All")
 				
 				imgui.table_set_column_index(1)
-				if config.p1.toggle.toggle_show then
+				if this.config.p1.toggle.toggle_show then
 					local all_checked = false
 					local any_checked = false
 					
-					for toggle_name, toggle_value in pairs(config.p1.toggle) do
+					for toggle_name, toggle_value in pairs(this.config.p1.toggle) do
 						if toggle_name ~= "toggle_show" then
 							if toggle_value then
 								any_checked = true
@@ -1131,11 +1238,11 @@ local function build_toggles()
 					
 					all_checked = any_checked
 					
-					changed, all_checked = toggle_setter("##p1_ToggleAll", all_checked)
-					if changed then
-						for toggle_name, _ in pairs(config.p1.toggle) do
+					this.changed, all_checked = toggle_setter("##p1_ToggleAll", all_checked)
+					if this.changed then
+						for toggle_name, _ in pairs(this.config.p1.toggle) do
 							if toggle_name ~= "toggle_show" then
-								config.p1.toggle[toggle_name] = all_checked
+								this.config.p1.toggle[toggle_name] = all_checked
 							end
 						end
 						mark_for_save()
@@ -1149,7 +1256,7 @@ local function build_toggles()
 						
 						local all_same = true
 						local first_opacity = nil
-						for opacity_name, opacity_value in pairs(config.p1.opacity) do
+						for opacity_name, opacity_value in pairs(this.config.p1.opacity) do
 							if first_opacity == nil then
 								first_opacity = opacity_value
 							elseif opacity_value ~= first_opacity then
@@ -1164,10 +1271,10 @@ local function build_toggles()
 							current_opacity_slider = 50
 						end
 						
-						changed, current_opacity_slider = opacity_setter("##p1_GlobalOpacity", current_opacity_slider, 0.5, 0, 100)
-						if changed then
-							for opacity_name, _ in pairs(config.p1.opacity) do
-								config.p1.opacity[opacity_name] = current_opacity_slider
+						this.changed, current_opacity_slider = opacity_setter("##p1_GlobalOpacity", current_opacity_slider, 0.5, 0, 100)
+						if this.changed then
+							for opacity_name, _ in pairs(this.config.p1.opacity) do
+								this.config.p1.opacity[opacity_name] = current_opacity_slider
 							end
 							mark_for_save()
 						end
@@ -1176,11 +1283,11 @@ local function build_toggles()
 				end
 				
 				imgui.table_set_column_index(2)
-				if config.p2.toggle.toggle_show then
+				if this.config.p2.toggle.toggle_show then
 					local all_checked = false
 					local any_checked = false
 					
-					for toggle_name, toggle_value in pairs(config.p2.toggle) do
+					for toggle_name, toggle_value in pairs(this.config.p2.toggle) do
 						if toggle_name ~= "toggle_show" then
 							if toggle_value then
 								any_checked = true
@@ -1190,11 +1297,11 @@ local function build_toggles()
 					
 					all_checked = any_checked
 					
-					changed, all_checked = toggle_setter("##p2_ToggleAll", all_checked)
-					if changed then
-						for toggle_name, _ in pairs(config.p2.toggle) do
+					this.changed, all_checked = toggle_setter("##p2_ToggleAll", all_checked)
+					if this.changed then
+						for toggle_name, _ in pairs(this.config.p2.toggle) do
 							if toggle_name ~= "toggle_show" then
-								config.p2.toggle[toggle_name] = all_checked
+								this.config.p2.toggle[toggle_name] = all_checked
 							end
 						end
 						mark_for_save()
@@ -1208,7 +1315,7 @@ local function build_toggles()
 						
 						local all_same = true
 						local first_opacity = nil
-						for opacity_name, opacity_value in pairs(config.p2.opacity) do
+						for opacity_name, opacity_value in pairs(this.config.p2.opacity) do
 							if first_opacity == nil then
 								first_opacity = opacity_value
 							elseif opacity_value ~= first_opacity then
@@ -1223,10 +1330,10 @@ local function build_toggles()
 							current_opacity_slider = 50
 						end
 						
-						changed, current_opacity_slider = opacity_setter("##p2_GlobalOpacity", current_opacity_slider, 0.5, 0, 100)
-						if changed then
-							for opacity_name, _ in pairs(config.p2.opacity) do
-								config.p2.opacity[opacity_name] = current_opacity_slider
+						this.changed, current_opacity_slider = opacity_setter("##p2_GlobalOpacity", current_opacity_slider, 0.5, 0, 100)
+						if this.changed then
+							for opacity_name, _ in pairs(this.config.p2.opacity) do
+								this.config.p2.opacity[opacity_name] = current_opacity_slider
 							end
 							mark_for_save()
 						end
@@ -1295,18 +1402,28 @@ local function build_hitboxes()
 	for i, obj in pairs(cWork) do
 		local actParam = obj.mpActParam
 		if actParam and not obj:get_IsR0Die() then
-			if obj:get_IsTeam1P() and config.p1.toggle.toggle_show then
-				draw_hitboxes(obj, actParam, config.p1)
-				local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
-				if objPos and config.p1.toggle.position then
-					draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10)
+			if obj:get_IsTeam1P() and this.config.p1.toggle.toggle_show then
+				draw_hitboxes(obj, actParam, this.config.p1)
+				if this.config.p1.toggle.position then
+					this.vPos.x = obj.pos.x.v / 6553600.0
+					this.vPos.y = obj.pos.y.v / 6553600.0
+					this.vPos.z = 0
+					local objPos = draw.world_to_screen(this.vPos)
+					if objPos then
+						draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(this.config.p1.opacity.position, 0xFFFFFF), 10)
+					end
 				end
 			end
-			if obj:get_IsTeam2P() and config.p2.toggle.toggle_show then
-				draw_hitboxes(obj, actParam, config.p2)
-				local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
-				if objPos and config.p2.toggle.position then
-					draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10)
+			if obj:get_IsTeam2P() and this.config.p2.toggle.toggle_show then
+				draw_hitboxes(obj, actParam, this.config.p2)
+				if this.config.p2.toggle.position then
+					this.vPos.x = obj.pos.x.v / 6553600.0
+					this.vPos.y = obj.pos.y.v / 6553600.0
+					this.vPos.z = 0
+					local objPos = draw.world_to_screen(this.vPos)
+					if objPos then
+						draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(this.config.p2.opacity.position, 0xFFFFFF), 10)
+					end
 				end
 			end
 		end
@@ -1317,61 +1434,65 @@ local function build_hitboxes()
 	for i, player in pairs(cPlayer) do
 		local actParam = player.mpActParam
 		if actParam then
-			if i == 0 and config.p1.toggle.toggle_show then
-				draw_hitboxes(player, actParam, config.p1)
-				local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
-				if worldPos and config.p1.toggle.position then
-					draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10)
+			if i == 0 and this.config.p1.toggle.toggle_show then
+				draw_hitboxes(player, actParam, this.config.p1)
+				if this.config.p1.toggle.position then
+					this.vPos.x = player.pos.x.v / 6553600.0
+					this.vPos.y = player.pos.y.v / 6553600.0
+					this.vPos.z = 0
+					local worldPos = draw.world_to_screen(this.vPos)
+					if worldPos then
+						draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(this.config.p1.opacity.position, 0xFFFFFF), 10)
+					end
 				end
 			end
-			if i == 1 and config.p2.toggle.toggle_show then
-				draw_hitboxes(player, actParam, config.p2)
-				local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
-				if worldPos and config.p2.toggle.position then
-					draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10)
+			if i == 1 and this.config.p2.toggle.toggle_show then
+				draw_hitboxes(player, actParam, this.config.p2)
+				if this.config.p2.toggle.position then
+					this.vPos.x = player.pos.x.v / 6553600.0
+					this.vPos.y = player.pos.y.v / 6553600.0
+					this.vPos.z = 0
+					local worldPos = draw.world_to_screen(this.vPos)
+					if worldPos then
+						draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(this.config.p2.opacity.position, 0xFFFFFF), 10)
+					end
 				end
 			end
 		end
 	end
 end
 
-local function build_gui(config, sPlayer)
-	if config.options.display_menu and sPlayer.prev_no_push_bit ~= 0 then
+local function build_gui()
+	if this.config.options.display_menu and get_prev_push_bit() ~= 0 then
 		imgui.set_next_item_open(true, 2)
 		imgui.begin_window("Hitboxes", true, 64)
-
-		build_toggles()		
+		build_toggles()
 		build_presets()
 		build_options()
 	end
 
-	build_hitboxes()
+	if is_pause_menu_closed() then
+		build_hitboxes()
+	end
 end
 
-init_config()
+if not this.initialized then
+	init_config()
+end
 
 re.on_draw_ui(function()
 	if imgui.tree_node("Hitbox Viewer") then
-		changed, config.options.display_menu = toggle_setter("Display Options Menu", config.options.display_menu)
+		this.changed, this.config.options.display_menu = toggle_setter("Display Options Menu", this.config.options.display_menu)
 		imgui.tree_pop()
 	end
 end)
 
 re.on_frame(function()
-
-	
 	if not gBattle then
 		gBattle = sdk.find_type_definition("gBattle")
-	end
-	if gBattle then
+	else
 		save_handler()
 		build_hotkeys()
-		
-		local sPlayer = gBattle:get_field("Player"):get_data(nil)
-
-		if is_pause_menu_closed() then
-			build_gui(config, sPlayer)
-		end
-
+		build_gui()
 	end
 end)
