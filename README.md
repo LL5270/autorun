@@ -8,6 +8,11 @@
 
 More customizable version of WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods)
 
+Usage:
+* **F1**: Hide/show options menu
+* **Ctrl+1**: Hide/show P1 hitboxes
+* **Ctrl+2**: Hide/show P2 hitboxes
+
 ## Replay ID To Clipboard
 
 [replay_id_to_clipboard.lua](replay_id_to_clipboard.lua)
@@ -17,10 +22,10 @@ More customizable version of WistfulHopes' original [hitbox display script](http
 Quickly copy the currently playing Replay ID with a click or hotkey. 
 
 Usage:
-* **Ctrl+N**: Copy ID
+* **Ctrl+N/Click**: Copy ID
 * **Ctrl+M**: Hide/show ID display
 
-## Combo Data (Beta)
+## Combo Data
 
 [combo_data.lua](combo_data.lua)
 
@@ -45,4 +50,4 @@ Tweaked version of WistfulHopes' original [info display script](https://github.c
 * To disable, open REFramework menu in game, navigate to "ScriptRunner" dropdown, and click on script filename to deselect
 
 ## Thanks
-Thanks to [WistfulHopes](https://github.com/WistfulHopes/SF6Mods) and [Rabbiratelier](https://github.com/Rabbiratelier/SF6Mods) for example code. Thanks to Torino, Yimbo and BV crew.
+Thanks to [WistfulHopes](https://github.com/WistfulHopes/SF6Mods) and [Rabbiratelier](https://github.com/Rabbiratelier/SF6Mods) for code examples. Thanks to Torino, Yimbo and BV crew.
