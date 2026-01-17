@@ -26,6 +26,7 @@ this.new_preset_name = ""
 this.rename_mode = false
 this.rename_temp_name = ""
 this.rename_select_all = false
+this.alpha = nil
 this.world_pos = nil
 this.screenTL = nil
 this.screenTR = nil
@@ -43,7 +44,6 @@ this.vPos = Vector3f.new(0, 0, 0)
 this.world_to_screen = draw.world_to_screen
 this.outline_rect = draw.outline_rect
 this.filled_rect = draw.filled_rect
-this.alpha = nil
 this.string_buffer = {}
 
 local function deep_copy(obj)

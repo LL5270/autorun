@@ -294,7 +294,7 @@ local function color(val)
 end
 
 local function copy_combo_to_clipboard(combo)
-    local rounded_carry = math.floor((combo.totals.p2_position / 1000) + 0.5)
+    local rounded_carry = math.floor((combo.totals.p2_position / 10) + 0.5)
     local gap_on_backroll = combo.totals.gap + 120
 
     local clipboard_string = string.format("%.0f\t%.0f\t%.0f\t%.0f\t%d\t%.0f\t%.0f", 
