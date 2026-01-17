@@ -1,13 +1,18 @@
 local CONFIG_PATH = "disp_hitboxes.json"
 local SAVE_DELAY = 0.5
-local F1_KEY = 0x70
+local KEY_CTRL = 0x11
+local KEY_F1 = 0x70
+local KEY_1 = 0x31
+local KEY_2 = 0x32
 
 local gBattle
 local save_pending
 local save_timer
 local changed
 local config
-local hide_ui = false
+local key_ready
+local pause_manager
+local pause_type_bit
 local prev_key_states = {}
 local presets = {}
 local preset_names = {}
@@ -17,32 +22,6 @@ local new_preset_name = ""
 local rename_mode = false
 local rename_temp_name = ""
 local rename_select_all = false
-local isUnpaused = true
-
-local function setup_hook(type_name, method_name, pre_func, post_func)
-	local type_def = sdk.find_type_definition(type_name)
-	if type_def then
-		local method = type_def:get_method(method_name)
-		if method then
-			sdk.hook(method, pre_func, post_func)
-		end
-	end
-end
-
-setup_hook("app.training.TrainingManager", "BattleStart", nil, function(retval)
-	isUnpaused = true
-	return retval
-end)
-
-setup_hook("app.PauseManager", "requestPauseStart", nil, function(retval)
-	isUnpaused = false
-	return retval
-end)
-
-setup_hook("app.PauseManager", "requestPauseEnd", nil, function(retval)
-	isUnpaused = true
-	return retval
-end)
 
 local function deep_copy(obj)
 	if type(obj) ~= 'table' then
@@ -200,7 +179,7 @@ local function load_config()
 	end
 end
 
-local function get_next_preset_name()
+local function get_dummy_preset_name()
 	local base_name = "Preset "
 	local i = 1
 	while true do
@@ -308,7 +287,7 @@ end
 
 local function update_current_preset_name(new_name)
 	if new_name == current_preset_name then
-		return 
+		return
 	end
 	
 	if new_name == "" then
@@ -399,7 +378,7 @@ local function cancel_new_preset()
 end
 
 local function create_new_blank_preset()
-	new_preset_name = get_next_preset_name()
+	new_preset_name = get_dummy_preset_name()
 	current_preset_name = new_preset_name
 end
 
@@ -515,7 +494,7 @@ end
 local function handle_empty_preset_buttons()
 	if imgui.button("New##create_new") then
 		create_new_mode = true
-		new_preset_name = get_next_preset_name()
+		new_preset_name = get_dummy_preset_name()
 		current_preset_name = new_preset_name
 	end
 end
@@ -523,12 +502,12 @@ end
 local function handle_fallback_buttons()
 	if imgui.button("New##create_new_fallback") then
 		create_new_mode = true
-		new_preset_name = get_next_preset_name()
+		new_preset_name = get_dummy_preset_name()
 		current_preset_name = new_preset_name
 	end
 end
 
-local function has_unsaved_changes(preset_name)
+local function preset_has_unsaved_changes(preset_name)
 	if not preset_name or preset_name == "" or not presets[preset_name] then
 		return false
 	end
@@ -571,22 +550,20 @@ end
 
 local function handle_normal_mode_buttons()
 	if current_preset_name ~= "" and presets[current_preset_name] ~= nil then
-		local has_unsaved = has_unsaved_changes(current_preset_name)
+		local has_unsaved = preset_has_unsaved_changes(current_preset_name)
 		
 		if has_unsaved then
-			if imgui.button("Save (!)##save_preset_unsaved") then
+			if imgui.button("Save##save_preset_unsaved") then
 				save_current_preset(current_preset_name)
+			end
+		
+			imgui.same_line()
+			
+			if imgui.button("Discard##load_preset") then
+				load_preset(current_preset_name)
 			end
 		else
-			if imgui.button("Save##save_preset") then
-				save_current_preset(current_preset_name)
-			end
-		end
-		
-		imgui.same_line()
-		
-		if imgui.button("Load##load_preset") then
-			load_preset(current_preset_name)
+			imgui.text("")
 		end
 		
 		imgui.same_line()
@@ -598,17 +575,16 @@ local function handle_normal_mode_buttons()
 		
 		imgui.same_line()
 		
-		if imgui.button("Delete##delete_current") then
-			delete_preset(current_preset_name)
-			current_preset_name = ""
-			create_new_mode = false
-			rename_mode = false
+		if imgui.button("New##create_new") then
+			create_new_mode = true
+			new_preset_name = get_dummy_preset_name()
+			current_preset_name = new_preset_name
 		end
 		
 	elseif current_preset_name == "" then
 		if imgui.button("New##create_new") then
 			create_new_mode = true
-			new_preset_name = get_next_preset_name()
+			new_preset_name = get_dummy_preset_name()
 			current_preset_name = new_preset_name
 		end
 	else
@@ -621,13 +597,13 @@ local function handle_normal_mode_buttons()
 		
 		if imgui.button("New##create_new_fallback") then
 			create_new_mode = true
-			new_preset_name = get_next_preset_name()
+			new_preset_name = get_dummy_preset_name()
 			current_preset_name = new_preset_name
 		end
 	end
 end
 
-local function handle_mode_buttons()
+local function preset_mode_handler()
 	if rename_mode then
 		handle_rename_mode_buttons()
 	elseif create_new_mode then
@@ -689,6 +665,21 @@ local function apply_opacity(alphaInt, colorWithoutAlpha)
 	alphaInt = math.max(0, math.min(100, alphaInt))
 	local alpha = math.floor((alphaInt / 100) * 255)
 	return alpha * 0x1000000 + colorWithoutAlpha
+end
+
+local function get_pause_type_bit()
+	if not pause_manager then
+		pause_manager = sdk.get_managed_singleton("app.PauseManager")
+	end
+	
+	pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
+end
+
+local function is_pause_menu_closed()
+	get_pause_type_bit()
+	if pause_type_bit == 64 or pause_type_bit == 2112 then
+		return true
+	end
 end
 
 local function bitand(a, b)
@@ -932,7 +923,7 @@ end
 local function init_config()
 	load_config()
 	if current_preset_name == "" then
-		current_preset_name = get_next_preset_name()
+		current_preset_name = get_dummy_preset_name()
 	end
 end
 
@@ -945,16 +936,26 @@ local function save_handler()
 	end
 end
 
-local function was_key_down(i)
-    local down = reframework:is_key_down(i)
-    local prev = prev_key_states[i]
-    prev_key_states[i] = down
-    return down and not prev
-end
+local function build_hotkeys()
+	if not key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then
+		key_ready = true
+	end
 
-local function hotkey_toggler()
-	if was_key_down(F1_KEY) then
+	if key_ready and reframework:is_key_down(KEY_F1) then
 		config.options.display_menu = not config.options.display_menu
+		key_ready = false
+		mark_for_save()
+	end
+
+	if key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_1) then
+		config.p1.toggle.toggle_show = not config.p1.toggle.toggle_show
+		key_ready = false
+		mark_for_save()
+	end
+
+	if key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_2) then
+		config.p2.toggle.toggle_show = not config.p2.toggle.toggle_show
+		key_ready = false
 		mark_for_save()
 	end
 end
@@ -1055,7 +1056,7 @@ local function build_presets()
 	imgui.pop_item_width()
 	imgui.same_line()
 	
-	handle_mode_buttons()
+	preset_mode_handler()
 	
 	build_presets_table()
 	
@@ -1288,48 +1289,46 @@ local function build_options()
 end
 
 local function build_hitboxes()
-	if isUnpaused then
-		local sWork = gBattle:get_field("Work"):get_data(nil)
-		local cWork = sWork.Global_work
-		
-		for i, obj in pairs(cWork) do
-			local actParam = obj.mpActParam
-			if actParam and not obj:get_IsR0Die() then
-				if obj:get_IsTeam1P() and config.p1.toggle.toggle_show then
-					draw_hitboxes(obj, actParam, config.p1)
-					local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
-					if objPos and config.p1.toggle.position then
-						draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10)
-					end
+	local sWork = gBattle:get_field("Work"):get_data(nil)
+	local cWork = sWork.Global_work
+	
+	for i, obj in pairs(cWork) do
+		local actParam = obj.mpActParam
+		if actParam and not obj:get_IsR0Die() then
+			if obj:get_IsTeam1P() and config.p1.toggle.toggle_show then
+				draw_hitboxes(obj, actParam, config.p1)
+				local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
+				if objPos and config.p1.toggle.position then
+					draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10)
 				end
-				if obj:get_IsTeam2P() and config.p2.toggle.toggle_show then
-					draw_hitboxes(obj, actParam, config.p2)
-					local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
-					if objPos and config.p2.toggle.position then
-						draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10)
-					end
+			end
+			if obj:get_IsTeam2P() and config.p2.toggle.toggle_show then
+				draw_hitboxes(obj, actParam, config.p2)
+				local objPos = draw.world_to_screen(Vector3f.new(obj.pos.x.v / 6553600.0, obj.pos.y.v / 6553600.0, 0))
+				if objPos and config.p2.toggle.position then
+					draw.filled_circle(objPos.x, objPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10)
 				end
 			end
 		end
-		
-		local sPlayer = gBattle:get_field("Player"):get_data(nil)
-		local cPlayer = sPlayer.mcPlayer
-		for i, player in pairs(cPlayer) do
-			local actParam = player.mpActParam
-			if actParam then
-				if i == 0 and config.p1.toggle.toggle_show then
-					draw_hitboxes(player, actParam, config.p1)
-					local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
-					if worldPos and config.p1.toggle.position then
-						draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10)
-					end
+	end
+	
+	local sPlayer = gBattle:get_field("Player"):get_data(nil)
+	local cPlayer = sPlayer.mcPlayer
+	for i, player in pairs(cPlayer) do
+		local actParam = player.mpActParam
+		if actParam then
+			if i == 0 and config.p1.toggle.toggle_show then
+				draw_hitboxes(player, actParam, config.p1)
+				local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
+				if worldPos and config.p1.toggle.position then
+					draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p1.opacity.position, 0xFFFFFF), 10)
 				end
-				if i == 1 and config.p2.toggle.toggle_show then
-					draw_hitboxes(player, actParam, config.p2)
-					local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
-					if worldPos and config.p2.toggle.position then
-						draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10)
-					end
+			end
+			if i == 1 and config.p2.toggle.toggle_show then
+				draw_hitboxes(player, actParam, config.p2)
+				local worldPos = draw.world_to_screen(Vector3f.new(player.pos.x.v / 6553600.0, player.pos.y.v / 6553600.0, 0))
+				if worldPos and config.p2.toggle.position then
+					draw.filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(config.p2.opacity.position, 0xFFFFFF), 10)
 				end
 			end
 		end
@@ -1337,7 +1336,7 @@ local function build_hitboxes()
 end
 
 local function build_gui(config, sPlayer)
-	if config.options.display_menu and sPlayer.prev_no_push_bit ~= 0 and not hide_ui then
+	if config.options.display_menu and sPlayer.prev_no_push_bit ~= 0 then
 		imgui.set_next_item_open(true, 2)
 		imgui.begin_window("Hitboxes", true, 64)
 
@@ -1359,13 +1358,20 @@ re.on_draw_ui(function()
 end)
 
 re.on_frame(function()
-	gBattle = sdk.find_type_definition("gBattle")
+
+	
+	if not gBattle then
+		gBattle = sdk.find_type_definition("gBattle")
+	end
 	if gBattle then
 		save_handler()
-		hotkey_toggler()
-
-		local sPlayer = gBattle:get_field("Player"):get_data(nil)
+		build_hotkeys()
 		
-		build_gui(config, sPlayer)
+		local sPlayer = gBattle:get_field("Player"):get_data(nil)
+
+		if is_pause_menu_closed() then
+			build_gui(config, sPlayer)
+		end
+
 	end
 end)
