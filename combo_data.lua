@@ -1,3 +1,15 @@
+-- TODO Add damage scaling, max damage info to combo displays to simulate in-game Attack Info
+-- TODO Add click-to-copy function for combo displays
+-- TODO Translate stored action_ids to move names
+-- TODO Fix combo advantage calculation
+-- TODO Add replay_id, player CFN info to sessions
+-- TODO Add ability to load sessions
+-- TODO Autoload saved sessions when watching replay
+-- TODO Add ability to load combos on per-character or per-player basis
+-- TODO Add blocked attacks
+-- TODO Add Drive Impact, Drive Rush, counterhit, punish counter recognition
+-- TODO Add flag for corner combos
+
 local sdk = sdk
 local imgui = imgui
 local re = re
@@ -7,6 +19,7 @@ local reframework = reframework
 
 local SAVE_DIR = "combo_data/"
 local CONFIG_PATH = SAVE_DIR .. "config.json"
+local COMBO_DATA_PATH = SAVE_DIR .. "combo_data.json"
 local MOVE_DICT_DIR = "move_dicts/"
 local F2_KEY = 0x71
 local F3_KEY = 0x72
@@ -133,6 +146,9 @@ function SceneTracker.check_scene_change()
                 SceneTracker.current_scene_id, new_scene_id, #ComboManager.session_combos))
             ComboManager.save_to_file()
         end
+
+        -- Clear combo windows
+        ComboManager.clear_combo_windows()
         
         -- Clear session combos for the new scene
         ComboManager.session_combos = {}
@@ -160,6 +176,8 @@ Config.settings = {
     sort_col = "Time",
     sort_dir = "desc",
     show_combo_windows = false,
+    show_p1_combo_window = false,
+    show_p2_combo_window = false,
     show_session_window = false
 }
 
@@ -387,24 +405,14 @@ ComboManager.session_combos = {}
 ComboManager.current_combo_index = 0
 ComboManager.current_group_id = 1
 ComboManager.group_combo_index = 0
-ComboManager.max_combos_to_load = 100 -- Default limit for UI display
-ComboManager.max_combos_to_save = 1000 -- Hard limit for file size
+ComboManager.max_combos_to_load = 100
+ComboManager.max_combos_to_save = 200
 function ComboManager.update_all_combos()
     local result = {}
-    
-    -- Add session combos first (they are usually the newest in UI)
-    -- Actually, all_combos is usually 1-indexed descending or ascending.
-    -- save_combo does table.insert(all_combos, 1, combo_data)
-    
-    -- In this refactor, we want all_combos to be the source for UI.
-    -- Let's stick to descending order (newest first).
-    
-    -- Session combos (recorded now)
     for _, combo in ipairs(ComboManager.session_combos) do
         table.insert(result, combo)
     end
     
-    -- Historical combos (from disk)
     if Config.settings.show_history then
         local limit = Config.settings.history_limit
         for i, combo in ipairs(ComboManager.historical_combos) do
@@ -558,10 +566,9 @@ function ComboManager.refresh_history()
 end
 
 function ComboManager.save_to_file()
-    local filename = "combo_history.lua"
-    local combo_save_path = SAVE_DIR .. filename
-    
-    -- Merge everything for saving
+    if ComboManager.current_game_mode == 2 and not Config.settings.save_training then
+        return false
+    end    
     local all_to_save = {}
     for _, combo in ipairs(ComboManager.session_combos) do
         table.insert(all_to_save, combo)
@@ -570,7 +577,6 @@ function ComboManager.save_to_file()
         table.insert(all_to_save, combo)
     end
     
-    -- Limit hard save size
     if #all_to_save > ComboManager.max_combos_to_save then
         local limited = {}
         for i=1, ComboManager.max_combos_to_save do
@@ -580,7 +586,17 @@ function ComboManager.save_to_file()
     end
     
     local data_str = "return " .. Utils.serialize(all_to_save)
-    fs.write(combo_save_path, data_str)
+    fs.write(COMBO_DATA_PATH, data_str)
+    return true
+end
+
+function ComboManager.clear_combo_windows()
+    ComboManager.p1_prev = {}
+    ComboManager.p2_prev = {}
+    ComboManager.player_states[0].started = false
+    ComboManager.player_states[0].finished = false
+    ComboManager.player_states[1].started = false
+    ComboManager.player_states[1].finished = false
 end
 
 function ComboManager.clear_all_combos()
@@ -598,7 +614,6 @@ end
 function ComboManager.backup_history(name)
     local combo_save_path = SAVE_DIR .. name
     
-    -- Merge everything for backup
     local all_to_backup = {}
     for _, combo in ipairs(ComboManager.session_combos) do
         table.insert(all_to_backup, combo)
@@ -614,14 +629,8 @@ end
 function ComboManager.save_combo(player_idx)
     local state = ComboManager.player_states[player_idx]
     if state.finished and state.start.p1 and state.start.p2 and state.finish.p1 and state.finish.p2 then
-        -- Skip training mode if disabled in config
         local game_mode = state.start.match.game_mode
-        if game_mode == 2 and not Config.settings.save_training then
-            log.info("Training mode combo detected, but saving is disabled in config")
-            return false
-        end
 
-        -- Duplicate prevention: Check finish match state against all session combos
         if game_mode and game_mode ~= 2 then
             local finish_match = state.finish.match
             local current_round = finish_match and finish_match.round or -1
@@ -696,8 +705,6 @@ function ComboManager.save_combo(player_idx)
             }
         }
         
-        -- Adjust drive totals for burnout scenarios
-        -- When starting with positive drive and ending in burnout (negative value)
         local p1_start_gauge = state.start.p1.drive_adjusted or 0
         local p1_end_gauge = state.finish.p1.drive_adjusted or 0
         if p1_start_gauge > 0 and p1_end_gauge < 0 then
@@ -716,9 +723,6 @@ function ComboManager.save_combo(player_idx)
         ComboManager.current_combo_index = ComboManager.current_combo_index + 1
         ComboManager.group_combo_index = ComboManager.group_combo_index + 1
         ComboManager.update_all_combos()
-        
-        log.info(string.format("Combo %d saved: %.0f damage", combo_data.index, combo_data.totals.damage))
-        
         return true
     end
     return false
@@ -767,13 +771,18 @@ function ComboManager.track_inputs(p1, p2, player_idx)
     end
 end
 
-function ComboManager.on_combo_finish(p1, p2, match_data, player_idx)
+function ComboManager.on_combo_update(p1, p2, match_data, player_idx)
     local state = ComboManager.player_states[player_idx]
     state.finish.p1 = Utils.deep_copy(p1)
     state.finish.p1.inputs = state.p1_inputs
     state.finish.p2 = Utils.deep_copy(p2)
     state.finish.p2.inputs = state.p2_inputs
     state.finish.match = Utils.deep_copy(match_data)
+end
+
+function ComboManager.on_combo_finish(p1, p2, match_data, player_idx)
+    local state = ComboManager.player_states[player_idx]
+    ComboManager.on_combo_update(p1, p2, match_data, player_idx)
     state.finished = true
     state.started = false
     
@@ -786,7 +795,7 @@ end
 
 function ComboManager.check_started(p1, p2, match_data)
     for i=0, 1 do
-        local state = ComboManager.player_states[i]
+        local state = ComboManager.player_states[i] or {}
         local p = (i == 0) and p1 or p2
         local opp = (i == 0) and p2 or p1
         
@@ -822,6 +831,8 @@ function ComboManager.check_finished(p1, p2, match_data)
             
             if is_finished or is_knockdown then
                 ComboManager.on_combo_finish(p1, p2, match_data, i)
+            else
+                ComboManager.on_combo_update(p1, p2, match_data, i)
             end
         end
     end
@@ -829,8 +840,6 @@ end
 
 function ComboManager.update_state(p1, p2, match_data)
     ComboManager.check_started(p1, p2, match_data)
-
-    -- Update Inputs for active combos
     for i=0, 1 do
         local state = ComboManager.player_states[i]
         if state.started and not state.finished then
@@ -856,6 +865,7 @@ UI.show_session = false
 UI.display_size = imgui.get_display_size()
 UI.center_x = UI.display_size.x * 0.5
 UI.combo_window_width = 1
+UI.max_session_window_height = 1000
 
 function UI.tooltip_debugger(t)
     imgui.begin_tooltip()
@@ -876,26 +886,21 @@ function UI.format_time(unix_time)
 end
 
 function UI.format_combo_time(combo)
-    -- Check if combo has match data with game_mode
     if combo.start and combo.start.match and combo.start.match.game_mode then
         local game_mode = combo.start.match.game_mode
         
-        -- Training mode (game_mode == 2): show real-world time
         if game_mode == 2 then
             return UI.format_time(combo.time)
         elseif game_mode == 24 then
-            -- Replay mode (game_mode == 24): show round number
             local round = (combo.start.match and combo.start.match.round) or 0
             return string.format("Round %d", round + 1)
         else
-            -- Other modes: show round timer
             if combo.start.match.timer and combo.start.match.timer.seconds_remaining then
                 return string.format("%.0fs", combo.start.match.timer.seconds_remaining)
             end
         end
     end
     
-    -- Fallback to real-world time if no match data
     return UI.format_time(combo.time)
 end
 
@@ -926,7 +931,7 @@ function UI.copy_combo_to_clipboard(combo)
     return true
 end
 
-function UI.render_stat_columns(start_idx, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
+function UI.render_combo_window_columns(start_idx, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
     imgui.table_set_column_index(start_idx)
     if is_diff then UI.color(p1_drive or 0) else imgui.text(tostring(p1_drive or 0)) end
 
@@ -943,14 +948,14 @@ function UI.render_stat_columns(start_idx, p1_drive, p1_super, p2_drive, p2_supe
     if is_diff then 
         UI.color(p1_pos or 0) 
     else 
-        imgui.text(string.format("%.1f", p1_pos or 0))
+        imgui.text(string.format("%.0f", p1_pos or 0))
     end
 
     imgui.table_set_column_index(start_idx + 5)
     if is_diff then 
         UI.color(p2_pos or 0) 
     else 
-        imgui.text(string.format("%.1f", p2_pos or 0))
+        imgui.text(string.format("%.0f", p2_pos or 0))
     end
     
     imgui.table_set_column_index(start_idx + 6)
@@ -960,17 +965,17 @@ function UI.render_stat_columns(start_idx, p1_drive, p1_super, p2_drive, p2_supe
     imgui.text(string.format("%.0f", gap or 0))
 end
 
-function UI.render_stat_row(label, hp, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
+function UI.render_combo_window_row(label, hp, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
     imgui.table_next_row()
     imgui.table_set_column_index(0); imgui.text(label)
 
     imgui.table_set_column_index(1)
     if is_diff then UI.color(hp or 0) else imgui.text(tostring(hp or 0)) end
 
-    UI.render_stat_columns(2, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
+    UI.render_combo_window_columns(2, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
 end
 
-function UI.render_current_combo_table(state)
+function UI.render_combo_window_table(state)
     if imgui.begin_table("current_combo_table", 10) then
         local p1_col_name, p2_col_name = "P1 (R)", "P2 (R)"
         if state.attacker == 0 and state.start and state.start.p1.dir then p1_col_name = "P1 (L)" end
@@ -993,70 +998,70 @@ function UI.render_current_combo_table(state)
         
         -- Start Row
         local s_hp = (state.attacker == 0) and state.start.p2.hp_current or state.start.p1.hp_current
-        UI.render_stat_row("Start", s_hp, 
+        UI.render_combo_window_row("Start", s_hp, 
             state.start.p1.drive_adjusted, state.start.p1.super,
             state.start.p2.drive_adjusted, state.start.p2.super,
             state.start.p1.pos_x, state.start.p2.pos_x, nil, nil, false)
 
-        -- Finish Row
-        if not state.started then
-            local f_hp = (state.attacker == 0) and state.finish.p2.hp_current or state.finish.p1.hp_current
-            UI.render_stat_row("Finish", f_hp, 
+        local f_hp = (state.attacker == 0) and state.finish.p2.hp_current or state.finish.p1.hp_current
+
+        local t_hp = 0
+        if state.attacker == 0 then
+            t_hp = (state.start.p2.hp_current or 0) - (state.finish.p2.hp_current or 0)
+        elseif state.attacker == 1 then
+            t_hp = (state.start.p1.hp_current or 0) - (state.finish.p1.hp_current or 0)
+        end
+
+        local t_p1_drive = (state.finish.p1.drive_adjusted or 0) - (state.start.p1.drive_adjusted or 0)
+        local t_p1_super = (state.finish.p1.super or 0) - (state.start.p1.super or 0)
+        local t_p2_drive = (state.finish.p2.drive_adjusted or 0) - (state.start.p2.drive_adjusted or 0)
+        local t_p2_super = (state.finish.p2.super or 0) - (state.start.p2.super or 0)
+        
+        local t_p1_carry = 0
+        if state.attacker == 0 and state.finish.p1.dir then
+            t_p1_carry = (state.finish.p1.pos_x or 0) - (state.start.p1.pos_x or 0)
+        elseif state.attacker == 0 and not state.finish.p1.dir then
+            t_p1_carry = (state.start.p1.pos_x or 0) - (state.finish.p1.pos_x or 0)
+        elseif state.attacker == 1 and state.finish.p2.dir then
+            t_p1_carry = (state.finish.p1.pos_x or 0) - (state.start.p1.pos_x or 0)
+        elseif state.attacker == 1 and not state.finish.p2.dir then
+            t_p1_carry = (state.start.p1.pos_x or 0) - (state.finish.p1.pos_x or 0)
+        end
+
+        local t_p2_carry = 0
+        if state.attacker == 0 and state.finish.p1.dir then
+            t_p2_carry = (state.finish.p2.pos_x or 0) - (state.start.p2.pos_x or 0)
+        elseif state.attacker == 0 and not state.finish.p1.dir then
+            t_p2_carry = (state.start.p2.pos_x or 0) - (state.finish.p2.pos_x or 0) 
+        elseif state.attacker == 1 and state.finish.p2.dir then
+            t_p2_carry = (state.finish.p2.pos_x or 0) - (state.start.p2.pos_x or 0)
+        elseif state.attacker == 1 and not state.finish.p2.dir then
+            t_p2_carry = (state.start.p2.pos_x or 0) - (state.finish.p2.pos_x or 0)
+        end
+
+        local t_adv = (state.attacker == 0) and state.finish.p1.advantage or state.finish.p2.advantage
+        local t_gap = state.finish.p1.gap
+
+        if not state.finished then
+            UI.render_combo_window_row("Finish", t_hp, 
+                t_p1_drive, t_p1_super,
+                t_p2_drive, t_p2_super,
+                t_p1_carry, t_p2_carry, t_adv, t_gap, true)
+        elseif state.finished then
+            UI.render_combo_window_row("Finish", f_hp, 
                 state.finish.p1.drive_adjusted, state.finish.p1.super,
                 state.finish.p2.drive_adjusted, state.finish.p2.super,
-                state.finish.p1.pos_x, state.finish.p2.pos_x, nil, nil, false)
-        end
-        
-        -- Total Row
-        if state.finished then
-            local t_hp = 0
-            if state.attacker == 0 then
-                t_hp = (state.start.p2.hp_current or 0) - (state.finish.p2.hp_current or 0)
-            elseif state.attacker == 1 then
-                t_hp = (state.start.p1.hp_current or 0) - (state.finish.p1.hp_current or 0)
-            end
-
-            local t_p1_drive = (state.finish.p1.drive_adjusted or 0) - (state.start.p1.drive_adjusted or 0)
-            local t_p1_super = (state.finish.p1.super or 0) - (state.start.p1.super or 0)
-            local t_p2_drive = (state.finish.p2.drive_adjusted or 0) - (state.start.p2.drive_adjusted or 0)
-            local t_p2_super = (state.finish.p2.super or 0) - (state.start.p2.super or 0)
-            
-            -- Carry Calculation
-            local t_p1_carry = 0
-            if state.attacker == 0 and state.finish.p1.dir then
-                t_p1_carry = (state.finish.p1.pos_x or 0) - (state.start.p1.pos_x or 0)
-            elseif state.attacker == 0 and not state.finish.p1.dir then
-                t_p1_carry = (state.start.p1.pos_x or 0) - (state.finish.p1.pos_x or 0)
-            elseif state.attacker == 1 and state.finish.p2.dir then
-                t_p1_carry = (state.finish.p1.pos_x or 0) - (state.start.p1.pos_x or 0)
-            elseif state.attacker == 1 and not state.finish.p2.dir then
-                t_p1_carry = (state.start.p1.pos_x or 0) - (state.finish.p1.pos_x or 0)
-            end
-
-            local t_p2_carry = 0
-            if state.attacker == 0 and state.finish.p1.dir then
-                t_p2_carry = (state.finish.p2.pos_x or 0) - (state.start.p2.pos_x or 0)
-            elseif state.attacker == 0 and not state.finish.p1.dir then
-                t_p2_carry = (state.start.p2.pos_x or 0) - (state.finish.p2.pos_x or 0) 
-            elseif state.attacker == 1 and state.finish.p2.dir then
-                t_p2_carry = (state.finish.p2.pos_x or 0) - (state.start.p2.pos_x or 0)
-            elseif state.attacker == 1 and not state.finish.p2.dir then
-                t_p2_carry = (state.start.p2.pos_x or 0) - (state.finish.p2.pos_x or 0)
-            end
-
-            local t_adv = (state.attacker == 0) and state.finish.p1.advantage or state.finish.p2.advantage
-            local t_gap = state.finish.p1.gap
-
-            UI.render_stat_row("Total", t_hp, 
+                state.finish.p1.pos_x, state.finish.p2.pos_x, nil, nil, f_gap)
+            UI.render_combo_window_row("Total", t_hp, 
                 t_p1_drive, t_p1_super,
                 t_p2_drive, t_p2_super,
                 t_p1_carry, t_p2_carry, t_adv, t_gap, true)
         end
-        imgui.end_table()
+    imgui.end_table()
     end
 end
 
-function UI.render_detail_row(label, value, use_color)
+function UI.render_popup_row(label, value, use_color)
     imgui.table_next_row()
     imgui.table_set_column_index(0); imgui.text(label)
     imgui.table_set_column_index(1)
@@ -1067,13 +1072,13 @@ function UI.render_detail_row(label, value, use_color)
     end
 end
 
-function UI.render_detail_separator()
+function UI.render_popup_separator()
     imgui.table_next_row()
     imgui.table_set_column_index(0); imgui.text("")
     imgui.table_set_column_index(1); imgui.text("")
 end
 
-function UI.render_combo_detail_content(combo, id_suffix)
+function UI.render_popup_content(combo, id_suffix)
     local timestamp_str = UI.format_time(combo.time)
     local group_idx = combo.group_index or 0
     local group_str = combo.group_id and string.format(" (Group %d)", combo.group_id + 1) or ""
@@ -1084,7 +1089,6 @@ function UI.render_combo_detail_content(combo, id_suffix)
         imgui.table_setup_column("Label", nil, 120)
         imgui.table_setup_column("Value", nil, 150)
         
-        -- Match Information
         local game_mode_str = "N/A"
         local is_training = false
         
@@ -1100,9 +1104,8 @@ function UI.render_combo_detail_content(combo, id_suffix)
             end
         end
         
-        UI.render_detail_row("Mode:", game_mode_str)
+        UI.render_popup_row("Mode:", game_mode_str)
         
-        -- Only show Round and Timer for non-training modes
         if not is_training then
             local round = "N/A"
             local timer_value = "N/A"
@@ -1117,16 +1120,15 @@ function UI.render_combo_detail_content(combo, id_suffix)
             
             local round_val = tonumber(round)
             local round_display = (round_val and tostring(round_val + 1)) or "N/A"
-            UI.render_detail_row("Round:", round_display)
+            UI.render_popup_row("Round:", round_display)
             
             local tv_num = tonumber(timer_value)
             local time_display = (tv_num and string.format("%.0fs", tv_num)) or "N/A"
-            UI.render_detail_row("Time:", time_display)
+            UI.render_popup_row("Time:", time_display)
         end
         
-        UI.render_detail_separator()
+        UI.render_popup_separator()
         
-        -- Character names with Attacker/Defender labels
         local attacker_name = ""
         local defender_name = ""
         
@@ -1138,49 +1140,49 @@ function UI.render_combo_detail_content(combo, id_suffix)
             defender_name = combo.finish.p1.char_name
         end
         
-        UI.render_detail_row("Attacker:", attacker_name)
-        UI.render_detail_row("Defender:", defender_name)
+        UI.render_popup_row("Attacker:", attacker_name)
+        UI.render_popup_row("Defender:", defender_name)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
         
         if combo.totals.attacker == 0 then
-            UI.render_detail_row("Start P2 HP:", combo.start.p2.hp_current)
-            UI.render_detail_row("Finish P2 HP:", combo.finish.p2.hp_current)
+            UI.render_popup_row("Start P2 HP:", combo.start.p2.hp_current)
+            UI.render_popup_row("Finish P2 HP:", combo.finish.p2.hp_current)
         elseif combo.totals.attacker == 1 then
-            UI.render_detail_row("Start P1 HP:", combo.start.p1.hp_current)
-            UI.render_detail_row("Finish P1 HP:", combo.finish.p1.hp_current)
+            UI.render_popup_row("Start P1 HP:", combo.start.p1.hp_current)
+            UI.render_popup_row("Finish P1 HP:", combo.finish.p1.hp_current)
         end
         
-        UI.render_detail_row("Total Damage:", combo.totals.damage, true)
+        UI.render_popup_row("Total Damage:", combo.totals.damage, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
         
-        UI.render_detail_row("Start P1 Drive:", combo.start.p1.drive_adjusted)
-        UI.render_detail_row("Finish P1 Drive:", combo.finish.p1.drive_adjusted)
-        UI.render_detail_row("Total P1 Drive:", combo.totals.p1_drive, true)
+        UI.render_popup_row("Start P1 Drive:", combo.start.p1.drive_adjusted)
+        UI.render_popup_row("Finish P1 Drive:", combo.finish.p1.drive_adjusted)
+        UI.render_popup_row("Total P1 Drive:", combo.totals.p1_drive, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
         
-        UI.render_detail_row("Start P1 Super:", combo.start.p1.super)
-        UI.render_detail_row("Finish P1 Super:", combo.finish.p1.super)
-        UI.render_detail_row("Total P1 Super:", combo.totals.p1_super, true)
+        UI.render_popup_row("Start P1 Super:", combo.start.p1.super)
+        UI.render_popup_row("Finish P1 Super:", combo.finish.p1.super)
+        UI.render_popup_row("Total P1 Super:", combo.totals.p1_super, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
 
-        UI.render_detail_row("Start P2 Drive:", combo.start.p2.drive_adjusted)
-        UI.render_detail_row("Finish P2 Drive:", combo.finish.p2.drive_adjusted)
-        UI.render_detail_row("Total P2 Drive:", combo.totals.p2_drive, true)
+        UI.render_popup_row("Start P2 Drive:", combo.start.p2.drive_adjusted)
+        UI.render_popup_row("Finish P2 Drive:", combo.finish.p2.drive_adjusted)
+        UI.render_popup_row("Total P2 Drive:", combo.totals.p2_drive, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
         
-        UI.render_detail_row("Start P2 Super:", combo.start.p2.super)
-        UI.render_detail_row("Finish P2 Super:", combo.finish.p2.super)
-        UI.render_detail_row("Total P2 Super:", combo.totals.p2_super, true)
+        UI.render_popup_row("Start P2 Super:", combo.start.p2.super)
+        UI.render_popup_row("Finish P2 Super:", combo.finish.p2.super)
+        UI.render_popup_row("Total P2 Super:", combo.totals.p2_super, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
         
-        UI.render_detail_row("Start P1 Pos:", string.format("%.1f", combo.start.p1.pos_x or 0))
-        UI.render_detail_row("Finish P1 Pos:", string.format("%.1f", combo.finish.p1.pos_x or 0))
+        UI.render_popup_row("Start P1 Pos:", string.format("%.1f", combo.start.p1.pos_x or 0))
+        UI.render_popup_row("Finish P1 Pos:", string.format("%.1f", combo.finish.p1.pos_x or 0))
 
         local p1_pos_val = 0
         if combo.totals.attacker == 0 then
@@ -1188,12 +1190,12 @@ function UI.render_combo_detail_content(combo, id_suffix)
         elseif combo.totals.attacker == 1 then
             if not combo.totals.p2_dir then p1_pos_val = -1 * combo.totals.p1_position else p1_pos_val = combo.totals.p1_position end
         end
-        UI.render_detail_row("P1 Pos Δ:", p1_pos_val, true)
+        UI.render_popup_row("P1 Pos Δ:", p1_pos_val, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
 
-        UI.render_detail_row("Start P2 Pos:", string.format("%.1f", combo.start.p2.pos_x or 0))
-        UI.render_detail_row("Finish P2 Pos:", string.format("%.2f", combo.finish.p2.pos_x or 0))
+        UI.render_popup_row("Start P2 Pos:", string.format("%.1f", combo.start.p2.pos_x or 0))
+        UI.render_popup_row("Finish P2 Pos:", string.format("%.2f", combo.finish.p2.pos_x or 0))
         
         local p2_pos_val = 0
         if combo.totals.attacker == 0 then
@@ -1201,39 +1203,39 @@ function UI.render_combo_detail_content(combo, id_suffix)
         elseif combo.totals.attacker == 1 then
             if not combo.totals.p2_dir then p2_pos_val = -1 * combo.totals.p2_position else p2_pos_val = combo.totals.p2_position end
         end
-        UI.render_detail_row("P2 Pos Δ:", p2_pos_val, true)
+        UI.render_popup_row("P2 Pos Δ:", p2_pos_val, true)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
 
         local adv_val = (combo.totals.attacker == 0) and combo.totals.p1_advantage or combo.totals.p2_advantage
-        UI.render_detail_row("Advantage:", adv_val)
-        UI.render_detail_row("Gap:", combo.totals.gap)
+        UI.render_popup_row("Advantage:", adv_val)
+        UI.render_popup_row("Gap:", combo.totals.gap)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
 
         local p1_inputs = ""
         for k, v in pairs(combo.finish.p1.inputs) do p1_inputs = tostring(p1_inputs) .. v .. " " end
-        UI.render_detail_row("P1 Actions:", p1_inputs)
+        UI.render_popup_row("P1 Actions:", p1_inputs)
 
         local p2_inputs = ""
         for k, v in pairs(combo.finish.p2.inputs) do p2_inputs = tostring(p2_inputs) .. v .. " " end
-        UI.render_detail_row("P2 Actions:", p2_inputs)
+        UI.render_popup_row("P2 Actions:", p2_inputs)
 
-        UI.render_detail_separator()
+        UI.render_popup_separator()
 
         local p1_named = ""
         if combo.totals.p1_actions_named then
             for k, v in pairs(combo.totals.p1_actions_named) do p1_named = tostring(p1_named) .. v .. " " end
         end
-        UI.render_detail_row("P1 Action Names:", p1_named)
+        UI.render_popup_row("P1 Action Names:", p1_named)
         
         imgui.end_table()
     end
 end
 
-function UI.render_combo_details_popup(combo, i)
+function UI.render_popup_window(combo, i)
     if imgui.begin_popup("combo_details_popup_" .. i) then
-        UI.render_combo_detail_content(combo, i)
+        UI.render_popup_content(combo, i)
         imgui.end_popup()
     end
 end
@@ -1244,14 +1246,12 @@ function UI.render_session_table_row(combo, i)
     local is_replay = (ComboManager.current_game_mode == 24)
     
     if not is_replay then
-        -- Training Mode Layout: [0] Date, [1] Time, [2] Char, [3] Dmg
         imgui.table_set_column_index(0)
-        imgui.text(os.date("%m/%d/%y", combo.time or 0))
+        imgui.text(os.date("%m/%d", combo.time or 0))
         
         imgui.table_set_column_index(1)
         imgui.text(os.date("%H:%M:%S", combo.time or 0))
     else
-        -- Replay Mode Layout: [0] Round, [1] GameTime, [2] Char, [3] Dmg
         imgui.table_set_column_index(0)
         local round = (combo.start and combo.start.match and combo.start.match.round) or 0
         imgui.text(tostring(round + 1))
@@ -1261,7 +1261,6 @@ function UI.render_session_table_row(combo, i)
         imgui.text(string.format("%.0f", timer))
     end
     
-    -- Common Columns: [2] Char, [3] Dmg
     imgui.table_set_column_index(2)
     local char_name = ""
     if combo.totals.attacker == 0 then
@@ -1285,7 +1284,7 @@ function UI.render_session_table_row(combo, i)
     
     local adv = (combo.totals.attacker == 0) and combo.totals.p1_advantage or combo.totals.p2_advantage
     
-    UI.render_stat_columns(4, 
+    UI.render_combo_window_columns(4, 
         combo.totals.p1_drive, combo.totals.p1_super,
         combo.totals.p2_drive, combo.totals.p2_super,
         p1_pos_val, p2_pos_val,
@@ -1297,12 +1296,10 @@ function UI.render_session_table_row(combo, i)
         imgui.open_popup("combo_details_popup_" .. i)
     end
     
-    -- Tooltip on hover
     if imgui.is_item_hovered() then
-        -- Only show if the popup is NOT already open for this specific combo
         if not imgui.is_popup_open("combo_details_popup_" .. i) then
             imgui.begin_tooltip()
-            UI.render_combo_detail_content(combo, "tooltip_" .. i)
+            UI.render_popup_content(combo, "tooltip_" .. i)
             imgui.end_tooltip()
         end
     end
@@ -1312,17 +1309,13 @@ function UI.render_session_table_row(combo, i)
         UI.copy_combo_to_clipboard(combo)
     end
     
-    UI.render_combo_details_popup(combo, i)
+    UI.render_popup_window(combo, i)
 end
 
 function UI.render_session_table(cm)
     local table_flags = 0
-    if imgui.table_flags and imgui.table_flags.borders then
-        table_flags = table_flags + imgui.table_flags.borders
-    end
-    if imgui.table_flags and imgui.table_flags.row_bg then
-        table_flags = table_flags + imgui.table_flags.row_bg
-    end
+    table_flags = table_flags + (imgui.TableFlags and imgui.TableFlags.RowBg or 0)
+    table_flags = table_flags + (imgui.TableFlags and imgui.TableFlags.SizingFixedFit or 0)
     
     local is_replay = (ComboManager.current_game_mode == 24)
     local headers = {}
@@ -1332,23 +1325,27 @@ function UI.render_session_table(cm)
         headers = {"Round", "Time", "Char", "Dmg", "P1Drive", "P1Super", "P2Drive", "P2Super", "P1Pos", "P2Pos", "Adv", "Gap"}
     end
 
-    if imgui.begin_table("saved_combos_table", 14) then
-        imgui.table_setup_column(headers[1], nil, 13)
-        imgui.table_setup_column(headers[2], nil, 13)
-        imgui.table_setup_column(headers[3], nil, 10)
-        imgui.table_setup_column(headers[4], nil, 8)
-        imgui.table_setup_column(headers[5], nil, 12)
-        imgui.table_setup_column(headers[6], nil, 13)
-        imgui.table_setup_column(headers[7], nil, 12)
-        imgui.table_setup_column(headers[8], nil, 13)
-        imgui.table_setup_column(headers[9], nil, 10)
-        imgui.table_setup_column(headers[10], nil, 10)
-        imgui.table_setup_column(headers[11], nil, 7)
-        imgui.table_setup_column(headers[12], nil, 7)
-        imgui.table_setup_column("", nil, 9)
-        imgui.table_setup_column("", nil, 9)
+    if imgui.begin_table("saved_combos_table", 14, table_flags) then
+        if not is_replay then
+            imgui.table_setup_column(headers[1], nil, 40)
+            imgui.table_setup_column(headers[2], nil, 50)
+        elseif is_replay then
+            imgui.table_setup_column(headers[1], nil, 41)
+            imgui.table_setup_column(headers[2], nil, 35)
+        end
+        imgui.table_setup_column(headers[3], nil, 55)
+        imgui.table_setup_column(headers[4], nil, 40)
+        imgui.table_setup_column(headers[5], nil, 55)
+        imgui.table_setup_column(headers[6], nil, 55)
+        imgui.table_setup_column(headers[7], nil, 55)
+        imgui.table_setup_column(headers[8], nil, 55)
+        imgui.table_setup_column(headers[9], nil, 45)
+        imgui.table_setup_column(headers[10], nil, 45)
+        imgui.table_setup_column(headers[11], nil, 25)
+        imgui.table_setup_column(headers[12], nil, 25)
+        imgui.table_setup_column("", nil, 40)
+        imgui.table_setup_column("", nil, 40)
         
-        -- Custom Header Rendering for Sorting
         imgui.table_next_row()
         for j, header in ipairs(headers) do
             imgui.table_set_column_index(j-1)
@@ -1368,8 +1365,8 @@ function UI.render_session_table(cm)
             end
         end
         -- Remaining two columns (buttons) have no headers
-        imgui.table_set_column_index(12); imgui.text("")
-        imgui.table_set_column_index(13); imgui.text("")
+        imgui.table_set_column_index(12); imgui.text(" ")
+        imgui.table_set_column_index(13); imgui.text(" ")
         
         imgui.separator()
         
@@ -1380,19 +1377,11 @@ function UI.render_session_table(cm)
     end
 end
 
-function UI.render_combo_window(player)
-    local cm = ComboManager
-    if not UI.show_combo_windows then return end
-
-
-end
-
 function UI.render_p1_combo_window()
     local cm = ComboManager
     
     if not UI.show_combo_windows then return end
     
-    -- Set default size and position
     local window_width = UI.combo_window_width
     local center_x = UI.center_x
     local window_y = UI.display_size.y * .004
@@ -1404,16 +1393,7 @@ function UI.render_p1_combo_window()
     imgui.begin_window("P1 Current Combo", true, 1|4|8)
     local state = cm.player_states[0]
     if state.started or state.finished then
-        UI.render_current_combo_table(state)
-        if state.finished and not Config.settings.autosave then
-            imgui.spacing()
-            if imgui.button("Save P1 Combo##save_0") then
-                if cm.save_combo(0) then
-                    imgui.same_line()
-                    imgui.text_colored("✓ Saved!", 0xFF00FF00)
-                end
-            end
-        end
+        UI.render_combo_window_table(state)
     else
         imgui.text("P1 Combo")
     end
@@ -1426,12 +1406,10 @@ function UI.render_p2_combo_window()
     
     if not UI.show_combo_windows then return end
     
-    -- Set default size and position
     local window_width = UI.combo_window_width
     local center_x = UI.center_x
     local window_y = UI.display_size.y * 0.004
-    -- Position P2 window on the right side, mirrored across center
-    local window_x = center_x-- 10px gap from center
+    local window_x = center_x
     
     imgui.set_next_window_pos(window_x, window_y, 0 << 1)
     imgui.set_next_window_size(window_width, 0, 0 << 1)
@@ -1439,16 +1417,7 @@ function UI.render_p2_combo_window()
     imgui.begin_window("P2 Current Combo", true, 1|4|8)
     local state = cm.player_states[1]
     if state.started or state.finished then
-        UI.render_current_combo_table(state)
-        if state.finished and not Config.settings.autosave then
-            imgui.spacing()
-            if imgui.button("Save P2 Combo##save_1") then
-                if cm.save_combo(1) then
-                    imgui.same_line()
-                    imgui.text_colored("✓ Saved!", 0xFF00FF00)
-                end
-            end
-        end
+        UI.render_combo_window_table(state)
     else
         imgui.text("P2 Combo")
     end
@@ -1461,10 +1430,14 @@ function UI.render_session_window()
     
     if not UI.show_session then return end
 
-    imgui.set_next_window_size(80, 0)
-    imgui.begin_window("Session", true, 1|8)
-    imgui.spacing()
     if #cm.all_combos > 0 then
+        if #cm.all_combos < 10 then
+            imgui.set_next_window_size(200, 0, 1 << 1)
+        else
+            imgui.set_next_window_size(200, UI.max_session_window_height, 0 << 1)
+        end
+        imgui.begin_window("Session", true, 1|8)
+        imgui.spacing()
         UI.render_session_table(cm)
     else
         imgui.text("No combos in session.")
@@ -1492,10 +1465,10 @@ function UI.render_windows()
     
     if UI.hide then return end
 
-    if cm.player_states[0].started or cm.player_states[0].finished then
+    if Config.settings.show_p1_combo_window and (cm.player_states[0].started or cm.player_states[0].finished) then
         UI.render_p1_combo_window()
     end
-    if cm.player_states[1].started or cm.player_states[1].finished then
+    if Config.settings.show_p2_combo_window and (cm.player_states[1].started or cm.player_states[1].finished) then
         UI.render_p2_combo_window()
     end
     if #cm.all_combos > 0 then
@@ -1507,16 +1480,16 @@ function UI.render_settings()
     local cm = ComboManager
     if imgui.tree_node("Combo Data") then
         local changed = false
-        changed, Config.settings.autosave = imgui.checkbox("Auto-save Combos", Config.settings.autosave)
+        changed, Config.settings.autosave = imgui.checkbox("Save Sessions", Config.settings.autosave)
         if changed then
             Config.save()
         end
         
-        changed, Config.settings.save_training = imgui.checkbox("Save Training", Config.settings.save_training)
+        changed, Config.settings.save_training = imgui.checkbox("Save Training Combos", Config.settings.save_training)
         if changed then
             Config.save()
         end
-        changed, Config.settings.show_history = imgui.checkbox("Show History", Config.settings.show_history)
+        changed, Config.settings.show_history = imgui.checkbox("Load History", Config.settings.show_history)
         if changed then
             Config.save()
             cm.update_all_combos()
@@ -1525,7 +1498,7 @@ function UI.render_settings()
         if Config.settings.show_history then
             imgui.same_line()
             imgui.set_next_item_width(60)
-            changed, Config.settings.history_limit = imgui.drag_int("Limit (0 = unlimited)", Config.settings.history_limit, 1, 0, 1000)
+            changed, Config.settings.history_limit = imgui.drag_int("Limit", Config.settings.history_limit, 1, 0, 1000)
             if changed then
                 Config.save()
                 cm.update_all_combos()
@@ -1533,19 +1506,34 @@ function UI.render_settings()
         end
         
         imgui.separator()
-        changed, Config.settings.show_combo_windows = imgui.checkbox("Show Combo Windows (F2)", Config.settings.show_combo_windows)
+        imgui.text("Combo Windows")
+        changed, Config.settings.show_combo_windows = imgui.checkbox("Toggle (F2)", Config.settings.show_combo_windows)
         if changed then
+            Config.settings.show_combo_windows = Config.settings.show_combo_windows
             Config.save()
             UI.show_combo_windows = Config.settings.show_combo_windows
         end
         
-        changed, Config.settings.show_session_window = imgui.checkbox("Show Session Window (F3)", Config.settings.show_session_window)
+        changed, Config.settings.show_p1_combo_window = imgui.checkbox("Show P1", Config.settings.show_p1_combo_window)
+        if changed then
+            Config.save()
+        end
+
+        imgui.same_line()
+        
+        changed, Config.settings.show_p2_combo_window = imgui.checkbox("Show P2", Config.settings.show_p2_combo_window)
+        if changed then
+            Config.save()
+        end
+
+        imgui.separator()
+        
+        changed, Config.settings.show_session_window = imgui.checkbox("Toggle Session Window (F3)", Config.settings.show_session_window)
         if changed then
             Config.save()
             UI.show_session = Config.settings.show_session_window
         end
         
-        imgui.separator()
         local total_count = #cm.session_combos + #cm.historical_combos
         if total_count > 0 then
             if imgui.button("Delete History") then
@@ -1590,7 +1578,6 @@ function UI.render_settings()
     end
 end
 
-
 -----------------------------------------------------------------------------
 -- Main
 -----------------------------------------------------------------------------
@@ -1598,9 +1585,17 @@ end
 Config.load()
 ComboManager.load_combos()
 
--- Initialize UI flags from config
 UI.show_combo_windows = Config.settings.show_combo_windows
 UI.show_session = Config.settings.show_session_window
+
+if Config.settings.show_p1_combo_window == nil then
+    Config.settings.show_p1_combo_window = Config.settings.show_combo_windows
+end
+if Config.settings.show_p2_combo_window == nil then
+    Config.settings.show_p2_combo_window = Config.settings.show_combo_windows
+end
+Config.save()
+
 
 re.on_script_reset(function()
 ComboManager.save_to_file()
@@ -1612,7 +1607,6 @@ re.on_draw_ui(function()
 end)
 
 re.on_frame(function()
-    -- Check for scene changes
     SceneTracker.check_scene_change()
     
     local sPlayer, _, _ = GameData.get_sdk_pointers()
