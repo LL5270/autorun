@@ -1,3 +1,9 @@
+local sdk = sdk
+local imgui = imgui
+local re = re
+local thread = thread
+local reframework = reframework
+
 local CONFIG_PATH = "replay_id_to_clipboard.json"
 local MOD_NAME = "Replay ID To Clipboard"
 local FLAG_TRANSPARENT = 0x81
@@ -14,6 +20,7 @@ local display_size
 local window_pos
 local is_replay = false
 local this = {}
+local window_width = 50
 
 this.config = {}
 this.config.window_show = this.config.window_show or true
@@ -96,7 +103,8 @@ end
 local function set_window_pos()
     if not window_pos then
         display_size = imgui.get_display_size()
-        window_pos = {display_size.x * .4762, display_size.y * .004}
+        window_pos = {(display_size.x * .5) - window_width, display_size.y * .004}
+        imgui.set_next_window_size(window_width, 0)
         imgui.set_next_window_pos(window_pos)
     end
 end
