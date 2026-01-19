@@ -219,6 +219,8 @@ ComboWindow.match_prev = {}
 ComboWindow.show_combo_windows = true
 ComboWindow.show_p1_combo_window = true
 ComboWindow.show_p2_combo_window = true
+ComboWindow.show_p1_total_only = false
+ComboWindow.show_p2_total_only = false
 
 function ComboWindow.clear_combo_windows()
     ComboWindow.p1_prev = {}
@@ -368,42 +370,42 @@ function UI.color(val)
     elseif val < 0 then
         imgui.text_colored(string.format("%.0f", val), 0xFFDDF527)
     else
-        imgui.text("0")
+        imgui.text("")
     end
 end
 
 function UI.render_combo_window_columns(start_idx, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
     imgui.table_set_column_index(start_idx)
-    if is_diff then UI.color(p1_drive or 0) else imgui.text(tostring(p1_drive or 0)) end
+    if is_diff then UI.color(p1_drive or 0) else imgui.text(p1_drive == 0 and "" or tostring(p1_drive or "")) end
 
     imgui.table_set_column_index(start_idx + 1)
-    if is_diff then UI.color(p1_super or 0) else imgui.text(tostring(p1_super or 0)) end
+    if is_diff then UI.color(p1_super or 0) else imgui.text(p1_super == 0 and "" or tostring(p1_super or "")) end
 
     imgui.table_set_column_index(start_idx + 2)
-    if is_diff then UI.color(p2_drive or 0) else imgui.text(tostring(p2_drive or 0)) end
+    if is_diff then UI.color(p2_drive or 0) else imgui.text(p2_drive == 0 and "" or tostring(p2_drive or "")) end
 
     imgui.table_set_column_index(start_idx + 3)
-    if is_diff then UI.color(p2_super or 0) else imgui.text(tostring(p2_super or 0)) end
+    if is_diff then UI.color(p2_super or 0) else imgui.text(p2_super == 0 and "" or tostring(p2_super or "")) end
 
     imgui.table_set_column_index(start_idx + 4)
     if is_diff then 
         UI.color(p1_pos or 0) 
     else 
-        imgui.text(string.format("%.0f", p1_pos or 0))
+        imgui.text(p1_pos == 0 and "" or string.format("%.0f", p1_pos or ""))
     end
 
     imgui.table_set_column_index(start_idx + 5)
-    if is_diff then 
-        UI.color(p2_pos or 0) 
+    if is_diff then
+        UI.color(p2_pos or 0)
     else 
-        imgui.text(string.format("%.0f", p2_pos or 0))
+        imgui.text(p2_pos == 0 and "" or string.format("%.0f", p2_pos or ""))
     end
     
     imgui.table_set_column_index(start_idx + 6)
-    imgui.text(tostring(adv or 0))
+    imgui.text(adv == 0 and "" or tostring(adv or ""))
 
     imgui.table_set_column_index(start_idx + 7)
-    imgui.text(string.format("%.0f", gap or 0))
+    if is_diff then UI.color(gap or 0) else imgui.text(gap == 0 and "" or tostring(gap or "")) end
 end
 
 function UI.render_combo_window_row(label, hp, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
@@ -411,7 +413,7 @@ function UI.render_combo_window_row(label, hp, p1_drive, p1_super, p2_drive, p2_
     imgui.table_set_column_index(0); imgui.text(label)
 
     imgui.table_set_column_index(1)
-    if is_diff then UI.color(hp or 0) else imgui.text(tostring(hp or 0)) end
+    if is_diff then UI.color(hp or 0) else imgui.text(hp == 0 and "" or tostring(hp or "")) end
 
     UI.render_combo_window_columns(2, p1_drive, p1_super, p2_drive, p2_super, p1_pos, p2_pos, adv, gap, is_diff)
 end
@@ -438,11 +440,15 @@ function UI.render_combo_window_table(state)
         imgui.table_headers_row()
         
         -- Start Row
-        local s_hp = (state.attacker == 0) and state.start.p2.hp_current or state.start.p1.hp_current
-        UI.render_combo_window_row("Start", s_hp, 
-            state.start.p1.drive_adjusted, state.start.p1.super,
-            state.start.p2.drive_adjusted, state.start.p2.super,
-            state.start.p1.pos_x, state.start.p2.pos_x, nil, nil, false)
+        local show_total_only = (state.attacker == 0) and ComboWindow.show_p1_total_only or ComboWindow.show_p2_total_only
+        
+        if not show_total_only then
+            local s_hp = (state.attacker == 0) and state.start.p2.hp_current or state.start.p1.hp_current
+            UI.render_combo_window_row("Start", s_hp, 
+                state.start.p1.drive_adjusted, state.start.p1.super,
+                state.start.p2.drive_adjusted, state.start.p2.super,
+                state.start.p1.pos_x, state.start.p2.pos_x, nil, nil, false)
+        end
 
         local f_hp = (state.attacker == 0) and state.finish.p2.hp_current or state.finish.p1.hp_current
 
@@ -469,6 +475,7 @@ function UI.render_combo_window_table(state)
             t_p1_carry = (state.start.p1.pos_x or 0) - (state.finish.p1.pos_x or 0)
         end
 
+
         local t_p2_carry = 0
         if state.attacker == 0 and state.finish.p1.dir then
             t_p2_carry = (state.finish.p2.pos_x or 0) - (state.start.p2.pos_x or 0)
@@ -480,6 +487,7 @@ function UI.render_combo_window_table(state)
             t_p2_carry = (state.start.p2.pos_x or 0) - (state.finish.p2.pos_x or 0)
         end
 
+
         local t_adv = (state.attacker == 0) and state.finish.p1.advantage or state.finish.p2.advantage
         local t_gap = state.finish.p1.gap
 
@@ -489,10 +497,12 @@ function UI.render_combo_window_table(state)
                 t_p2_drive, t_p2_super,
                 t_p1_carry, t_p2_carry, t_adv, t_gap, true)
         elseif state.finished then
-            UI.render_combo_window_row("Finish", f_hp, 
-                state.finish.p1.drive_adjusted, state.finish.p1.super,
-                state.finish.p2.drive_adjusted, state.finish.p2.super,
-                state.finish.p1.pos_x, state.finish.p2.pos_x, nil, nil, false)
+            if not show_total_only then
+                UI.render_combo_window_row("Finish", f_hp, 
+                    state.finish.p1.drive_adjusted, state.finish.p1.super,
+                    state.finish.p2.drive_adjusted, state.finish.p2.super,
+                    state.finish.p1.pos_x, state.finish.p2.pos_x, nil, nil, false)
+            end
             UI.render_combo_window_row("Total", t_hp, 
                 t_p1_drive, t_p1_super,
                 t_p2_drive, t_p2_super,
@@ -515,6 +525,18 @@ function UI.render_p1_combo_window()
     
     imgui.begin_window("P1 Current Combo", true, 1|4|8)
     local state = ComboWindow.player_states[0]
+    
+    local window_pos = imgui.get_window_pos()
+    local window_size = imgui.get_window_size()
+    local mouse_pos = imgui.get_mouse()
+    
+    local is_mouse_over_window = (mouse_pos.x >= window_pos.x and mouse_pos.x <= window_pos.x + window_size.x and
+                                   mouse_pos.y >= window_pos.y and mouse_pos.y <= window_pos.y + window_size.y)
+    
+    if is_mouse_over_window and imgui.is_mouse_clicked(0) then
+        ComboWindow.show_p1_total_only = not ComboWindow.show_p1_total_only
+    end
+    
     if state.started or state.finished then
         UI.render_combo_window_table(state)
     else
@@ -537,6 +559,18 @@ function UI.render_p2_combo_window()
     
     imgui.begin_window("P2 Current Combo", true, 1|4|8)
     local state = ComboWindow.player_states[1]
+    
+    local window_pos = imgui.get_window_pos()
+    local window_size = imgui.get_window_size()
+    local mouse_pos = imgui.get_mouse()
+    
+    local is_mouse_over_window = (mouse_pos.x >= window_pos.x and mouse_pos.x <= window_pos.x + window_size.x and
+                                   mouse_pos.y >= window_pos.y and mouse_pos.y <= window_pos.y + window_size.y)
+    
+    if is_mouse_over_window and imgui.is_mouse_clicked(0) then
+        ComboWindow.show_p2_total_only = not ComboWindow.show_p2_total_only
+    end
+    
     if state.started or state.finished then
         UI.render_combo_window_table(state)
     else
