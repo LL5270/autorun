@@ -267,7 +267,7 @@ function UI.render_windows()
     if not Config.settings.toggle_all then return end
     local display = imgui.get_display_size()
     local center_x, window_y = display.x * 0.5, display.y * 0.004
-    imgui.push_font(imgui.load_font(nil, 22))
+    imgui.push_font(imgui.load_font(nil, 23))
 
     -- PRESERVED FIXED POSITIONING (Cond_Always 1<<1)
     if Config.settings.toggle_p1 then
