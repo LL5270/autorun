@@ -1,7 +1,15 @@
+local sdk = sdk
+local imgui = imgui
+local re = re
+local fs = fs
+local json = json
+local reframework = reframework
+
 local SAVE_DIR = "combo_data/"
 local CONFIG_PATH = SAVE_DIR .. "config.json"
 local MOVE_DICT_DIR = "move_dicts/"
 local F2_KEY = 0x71
+local F3_KEY = 0x72
 
 local Utils = {}
 local GameData = {}
@@ -150,7 +158,9 @@ Config.settings = {
     show_history = true,
     history_limit = 100,
     sort_col = "Time",
-    sort_dir = "desc"
+    sort_dir = "desc",
+    show_combo_windows = false,
+    show_session_window = false
 }
 
 function Config.load()
@@ -841,6 +851,11 @@ end
 -----------------------------------------------------------------------------
 UI.prev_key_states = {}
 UI.hide = false
+UI.show_combo_windows = false
+UI.show_session = false
+UI.display_size = imgui.get_display_size()
+UI.center_x = UI.display_size.x * 0.5
+UI.combo_window_width = 1
 
 function UI.tooltip_debugger(t)
     imgui.begin_tooltip()
@@ -850,7 +865,7 @@ end
 
 function UI.was_key_down(i)
     local down = reframework:is_key_down(i)
-    local prev = UI.prev_key_states[i]
+    local prev = UI.prev_key_states[i] or false
     UI.prev_key_states[i] = down
     return down and not prev
 end
@@ -961,19 +976,19 @@ function UI.render_current_combo_table(state)
         if state.attacker == 0 and state.start and state.start.p1.dir then p1_col_name = "P1 (L)" end
         if state.attacker == 1 and state.start and state.start.p2.dir then p2_col_name = "P2 (L)" end
 
-        if state.attacker == 0 then imgui.table_setup_column(p1_col_name, nil, 15)
-        elseif state.attacker == 1 then imgui.table_setup_column(p2_col_name, nil, 15)
-        else imgui.table_setup_column("", nil, 15) end
+        if state.attacker == 0 then imgui.table_setup_column(p1_col_name, nil, 1)
+        elseif state.attacker == 1 then imgui.table_setup_column(p2_col_name, nil, 1)
+        else imgui.table_setup_column("", nil, 1) end
 
-        imgui.table_setup_column("Health", nil, 15)
-        imgui.table_setup_column("P1Drive", nil, 20)
-        imgui.table_setup_column("P1Super", nil, 20)
-        imgui.table_setup_column("P2Drive", nil, 20)
-        imgui.table_setup_column("P2Super", nil, 20)
-        imgui.table_setup_column("P1Carry", nil, 20)
-        imgui.table_setup_column("P2Carry", nil, 20)
-        imgui.table_setup_column("Adv", nil, 10)
-        imgui.table_setup_column("Gap", nil, 10)
+        imgui.table_setup_column("Damage", nil, 1)
+        imgui.table_setup_column("P1Drive", nil, 1)
+        imgui.table_setup_column("P1Super", nil, 1)
+        imgui.table_setup_column("P2Drive", nil, 1)
+        imgui.table_setup_column("P2Super", nil, 1)
+        imgui.table_setup_column("P1Carry", nil, 1)
+        imgui.table_setup_column("P2Carry", nil, 1)
+        imgui.table_setup_column("Adv", nil, 1)
+        imgui.table_setup_column("Gap", nil, 1)
         imgui.table_headers_row()
         
         -- Start Row
@@ -1223,7 +1238,7 @@ function UI.render_combo_details_popup(combo, i)
     end
 end
 
-function UI.render_saved_combo_row(combo, i)
+function UI.render_session_table_row(combo, i)
     imgui.table_next_row()
     
     local is_replay = (ComboManager.current_game_mode == 24)
@@ -1300,7 +1315,7 @@ function UI.render_saved_combo_row(combo, i)
     UI.render_combo_details_popup(combo, i)
 end
 
-function UI.render_saved_combos_table(cm)
+function UI.render_session_table(cm)
     local table_flags = 0
     if imgui.table_flags and imgui.table_flags.borders then
         table_flags = table_flags + imgui.table_flags.borders
@@ -1317,7 +1332,7 @@ function UI.render_saved_combos_table(cm)
         headers = {"Round", "Time", "Char", "Dmg", "P1Drive", "P1Super", "P2Drive", "P2Super", "P1Pos", "P2Pos", "Adv", "Gap"}
     end
 
-    if imgui.begin_table("saved_combos_table", 14, table_flags) then
+    if imgui.begin_table("saved_combos_table", 14) then
         imgui.table_setup_column(headers[1], nil, 13)
         imgui.table_setup_column(headers[2], nil, 13)
         imgui.table_setup_column(headers[3], nil, 10)
@@ -1328,9 +1343,9 @@ function UI.render_saved_combos_table(cm)
         imgui.table_setup_column(headers[8], nil, 13)
         imgui.table_setup_column(headers[9], nil, 10)
         imgui.table_setup_column(headers[10], nil, 10)
-        imgui.table_setup_column(headers[11], nil, 6)
-        imgui.table_setup_column(headers[12], nil, 6)
-        imgui.table_setup_column("", nil, 8)
+        imgui.table_setup_column(headers[11], nil, 7)
+        imgui.table_setup_column(headers[12], nil, 7)
+        imgui.table_setup_column("", nil, 9)
         imgui.table_setup_column("", nil, 9)
         
         -- Custom Header Rendering for Sorting
@@ -1341,7 +1356,7 @@ function UI.render_saved_combos_table(cm)
             if Config.settings.sort_col == header then
                 label = label .. (Config.settings.sort_dir == "asc" and " ^" or " v")
             end
-            if imgui.button(label .. "##header_" .. header) then
+            if imgui.small_button(label .. "##header_" .. header) then
                 if Config.settings.sort_col == header then
                     Config.settings.sort_dir = (Config.settings.sort_dir == "asc") and "desc" or "asc"
                 else
@@ -1359,9 +1374,132 @@ function UI.render_saved_combos_table(cm)
         imgui.separator()
         
         for i, combo in ipairs(cm.all_combos) do
-            UI.render_saved_combo_row(combo, i)
+            UI.render_session_table_row(combo, i)
         end 
         imgui.end_table()
+    end
+end
+
+function UI.render_combo_window(player)
+    local cm = ComboManager
+    if not UI.show_combo_windows then return end
+
+
+end
+
+function UI.render_p1_combo_window()
+    local cm = ComboManager
+    
+    if not UI.show_combo_windows then return end
+    
+    -- Set default size and position
+    local window_width = UI.combo_window_width
+    local center_x = UI.center_x
+    local window_y = UI.display_size.y * .004
+    local window_x = window_width - center_x
+    
+    imgui.set_next_window_pos(window_x, window_y, 0 << 1)
+    imgui.set_next_window_size(window_width, 0, 0 << 1)
+    
+    imgui.begin_window("P1 Current Combo", true, 1|4|8)
+    local state = cm.player_states[0]
+    if state.started or state.finished then
+        UI.render_current_combo_table(state)
+        if state.finished and not Config.settings.autosave then
+            imgui.spacing()
+            if imgui.button("Save P1 Combo##save_0") then
+                if cm.save_combo(0) then
+                    imgui.same_line()
+                    imgui.text_colored("✓ Saved!", 0xFF00FF00)
+                end
+            end
+        end
+    else
+        imgui.text("P1 Combo")
+    end
+    
+    imgui.end_window()
+end
+
+function UI.render_p2_combo_window()
+    local cm = ComboManager
+    
+    if not UI.show_combo_windows then return end
+    
+    -- Set default size and position
+    local window_width = UI.combo_window_width
+    local center_x = UI.center_x
+    local window_y = UI.display_size.y * 0.004
+    -- Position P2 window on the right side, mirrored across center
+    local window_x = center_x-- 10px gap from center
+    
+    imgui.set_next_window_pos(window_x, window_y, 0 << 1)
+    imgui.set_next_window_size(window_width, 0, 0 << 1)
+    
+    imgui.begin_window("P2 Current Combo", true, 1|4|8)
+    local state = cm.player_states[1]
+    if state.started or state.finished then
+        UI.render_current_combo_table(state)
+        if state.finished and not Config.settings.autosave then
+            imgui.spacing()
+            if imgui.button("Save P2 Combo##save_1") then
+                if cm.save_combo(1) then
+                    imgui.same_line()
+                    imgui.text_colored("✓ Saved!", 0xFF00FF00)
+                end
+            end
+        end
+    else
+        imgui.text("P2 Combo")
+    end
+    
+    imgui.end_window()
+end
+
+function UI.render_session_window()
+    local cm = ComboManager
+    
+    if not UI.show_session then return end
+
+    imgui.set_next_window_size(80, 0)
+    imgui.begin_window("Session", true, 1|8)
+    imgui.spacing()
+    if #cm.all_combos > 0 then
+        UI.render_session_table(cm)
+    else
+        imgui.text("No combos in session.")
+    end
+    imgui.end_window()
+end
+
+function UI.render_windows()
+    local cm = ComboManager
+    if UI.was_key_down(F2_KEY) then
+        Config.settings.show_combo_windows = not Config.settings.show_combo_windows
+        Config.save()
+        UI.show_combo_windows = Config.settings.show_combo_windows
+    end
+    
+    if UI.was_key_down(F3_KEY) then
+        Config.settings.show_session_window = not Config.settings.show_session_window
+        Config.save()
+        UI.show_session = Config.settings.show_session_window
+    end
+    
+    -- Sync UI flags with config settings
+    UI.show_combo_windows = Config.settings.show_combo_windows
+    UI.show_session = Config.settings.show_session_window
+    
+    if UI.hide then return end
+
+    if cm.player_states[0].started or cm.player_states[0].finished then
+        UI.render_p1_combo_window()
+    end
+    if cm.player_states[1].started or cm.player_states[1].finished then
+        UI.render_p2_combo_window()
+    end
+    if #cm.all_combos > 0 then
+        UI.render_session_window()
     end
 end
 
@@ -1394,6 +1532,20 @@ function UI.render_settings()
             end
         end
         
+        imgui.separator()
+        changed, Config.settings.show_combo_windows = imgui.checkbox("Show Combo Windows (F2)", Config.settings.show_combo_windows)
+        if changed then
+            Config.save()
+            UI.show_combo_windows = Config.settings.show_combo_windows
+        end
+        
+        changed, Config.settings.show_session_window = imgui.checkbox("Show Session Window (F3)", Config.settings.show_session_window)
+        if changed then
+            Config.save()
+            UI.show_session = Config.settings.show_session_window
+        end
+        
+        imgui.separator()
         local total_count = #cm.session_combos + #cm.historical_combos
         if total_count > 0 then
             if imgui.button("Delete History") then
@@ -1439,66 +1591,16 @@ function UI.render_settings()
 end
 
 
-function UI.render()
-    local cm = ComboManager
-    
-    if UI.was_key_down(F2_KEY) then
-        UI.hide = not UI.hide
-    end
-    
-    if UI.hide then return end
-
-    imgui.begin_window("Combo Data", true, 1|8)
-    if imgui.tree_node("Current Combo") then
-        local any_active = false
-        for i=0, 1 do
-            local state = cm.player_states[i]
-            if state.started or state.finished then
-                any_active = true
-                imgui.text("Player " .. (i + 1) .. " (Target P" .. (2-i) .. ")")
-                UI.render_current_combo_table(state)
-                
-                if state.finished and not Config.settings.autosave then
-                    imgui.spacing()
-                    if imgui.button("Save Player " .. (i + 1) .. " Combo##save_" .. i) then
-                        if cm.save_combo(i) then
-                            imgui.same_line()
-                            imgui.text_colored("✓ Saved!", 0xFF00FF00)
-                        end
-                    end
-                end
-                imgui.separator()
-            end
-        end
-        
-        if not any_active then
-            imgui.text("No active combos detected.")
-        end
-        
-        imgui.tree_pop()
-    end
-    
-    if cm.show_saved_combos then
-        imgui.spacing()
-        imgui.set_next_item_open(true, 2)
-        if imgui.tree_node(string.format("Session (%d)", #cm.all_combos)) then
-            imgui.spacing()
-            if #cm.all_combos > 0 then
-                UI.render_saved_combos_table(cm)
-            end
-            imgui.tree_pop()
-        end
-    end
-    imgui.end_window()
-end
-
-
 -----------------------------------------------------------------------------
 -- Main
 -----------------------------------------------------------------------------
 
 Config.load()
 ComboManager.load_combos()
+
+-- Initialize UI flags from config
+UI.show_combo_windows = Config.settings.show_combo_windows
+UI.show_session = Config.settings.show_session_window
 
 re.on_script_reset(function()
 ComboManager.save_to_file()
@@ -1520,7 +1622,7 @@ re.on_frame(function()
         local p1, p2, match_data = GameData.process_battle_info()
         if p1 and p2 then
             ComboManager.update_state(p1, p2, match_data)
-            UI.render()
+            UI.render_windows()
         end
     end
 end)
