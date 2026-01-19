@@ -141,7 +141,7 @@ function SceneTracker.check_scene_change()
     local new_scene_id = SceneTracker.get_scene_id()
     if new_scene_id ~= SceneTracker.current_scene_id and SceneTracker.current_scene_id ~= -1 then
         -- Scene changed, trigger save if autosave is enabled and there are session combos
-        if Config.settings.autosave and #ComboManager.session_combos > 0 then
+        if Config.settings.autosave and ComboManager.session_combos and #ComboManager.session_combos > 0 then
             log.info(string.format("Scene changed from %d to %d, saving %d session combos", 
                 SceneTracker.current_scene_id, new_scene_id, #ComboManager.session_combos))
             ComboManager.save_to_file()
@@ -395,27 +395,120 @@ function GameData.process_battle_info()
     return p1_data, p2_data, match_data, frame_meter
 end
 
--- TODO Implement checker for throws using catch_muteki property
 -----------------------------------------------------------------------------
 -- ComboManager
 -----------------------------------------------------------------------------
-ComboManager.all_combos = {}
-ComboManager.historical_combos = {}
-ComboManager.session_combos = {}
-ComboManager.current_combo_index = 0
-ComboManager.current_group_id = 1
-ComboManager.group_combo_index = 0
-ComboManager.max_combos_to_load = 100
-ComboManager.max_combos_to_save = 200
+
+local ComboManager = {
+    MAX_COMBOS_TO_LOAD = 100,
+    MAX_COMBOS_TO_SAVE = 200,
+    
+    all_combos = {},
+    historical_combos = {},
+    session_combos = {},
+    current_combo_index = 0,
+    current_group_id = 1,
+    group_combo_index = 0,
+    current_game_mode = nil,
+    show_saved_combos = true,
+    
+    p1_prev = {},
+    p2_prev = {},
+    match_prev = {},
+}
+
+-- ============================================================================
+-- Player State Management
+-- ============================================================================
+
+local function create_player_state(attacker_idx, defender_idx)
+    return {
+        started = false,
+        finished = false,
+        attacker = attacker_idx,
+        defender = defender_idx,
+        start = { p1 = {}, p2 = {}, match = {} },
+        finish = { p1 = {}, p2 = {}, match = {} },
+        p1_inputs = {},
+        p2_inputs = {},
+    }
+end
+
+ComboManager.player_states = {
+    [0] = create_player_state(0, 1),
+    [1] = create_player_state(1, 0),
+}
+
+-- ============================================================================
+-- Sorting & Filtering
+-- ============================================================================
+
+local function get_sort_value(combo, column)
+    local totals = combo.totals
+    local start = combo.start
+    
+    local sort_handlers = {
+        Date = function() return combo.time or 0 end,
+        Time = function() return combo.time or 0 end,
+        Round = function() 
+            return (start.match and start.match.round) or 0 
+        end,
+        GameTime = function() 
+            return (start.match and start.match.timer and start.match.timer.seconds) or 0 
+        end,
+        Char = function()
+            return (totals.attacker == 0) and (totals.p1_char_name or "") or (totals.p2_char_name or "")
+        end,
+        Dmg = function() return totals.damage or 0 end,
+        P1Drive = function() return totals.p1_drive or 0 end,
+        P1Super = function() return totals.p1_super or 0 end,
+        P2Drive = function() return totals.p2_drive or 0 end,
+        P2Super = function() return totals.p2_super or 0 end,
+        P1Pos = function()
+            local pos = totals.p1_position or 0
+            local dir = (totals.attacker == 0) and totals.p1_dir or totals.p2_dir
+            return dir and pos or -pos
+        end,
+        P2Pos = function()
+            local pos = totals.p2_position or 0
+            local dir = (totals.attacker == 0) and totals.p1_dir or (not totals.p2_dir)
+            return dir and pos or -pos
+        end,
+        Adv = function()
+            return (totals.attacker == 0) and (totals.p1_advantage or 0) or (totals.p2_advantage or 0)
+        end,
+        Gap = function() return totals.gap or 0 end,
+    }
+    
+    local handler = sort_handlers[column]
+    return handler and handler() or 0
+end
+
+function ComboManager.sort_combos(combos, column, direction)
+    if not column or not direction then return end
+    
+    table.sort(combos, function(a, b)
+        local val_a = get_sort_value(a, column)
+        local val_b = get_sort_value(b, column)
+        
+        if direction == "asc" then
+            return val_a < val_b
+        else
+            return val_a > val_b
+        end
+    end)
+end
+
 function ComboManager.update_all_combos()
     local result = {}
+    
     for _, combo in ipairs(ComboManager.session_combos) do
         table.insert(result, combo)
     end
     
     if Config.settings.show_history then
         local limit = Config.settings.history_limit
-        for i, combo in ipairs(ComboManager.historical_combos) do
+        for _, combo in ipairs(ComboManager.historical_combos) do
             if limit == 0 or #result < limit then
                 table.insert(result, combo)
             end
@@ -426,103 +519,9 @@ function ComboManager.update_all_combos()
     ComboManager.all_combos = result
 end
 
-function ComboManager.sort_combos(combos, col, dir)
-    if not col or not dir then return end
-    
-    table.sort(combos, function(a, b)
-        local val_a, val_b
-        
-        if col == "Date" or col == "Time" then
-            val_a, val_b = a.time or 0, b.time or 0
-        elseif col == "Round" then
-            val_a = (a.start and a.start.match and a.start.match.round) or 0
-            val_b = (b.start and b.start.match and b.start.match.round) or 0
-        elseif col == "GameTime" then
-            val_a = (a.start and a.start.match and a.start.match.timer and a.start.match.timer.seconds) or 0
-            val_b = (b.start and b.start.match and b.start.match.timer and b.start.match.timer.seconds) or 0
-        elseif col == "Char" then
-            val_a = (a.totals.attacker == 0) and (a.totals.p1_char_name or "") or (a.totals.p2_char_name or "")
-            val_b = (b.totals.attacker == 0) and (b.totals.p1_char_name or "") or (b.totals.p2_char_name or "")
-        elseif col == "Dmg" then
-            val_a, val_b = a.totals.damage or 0, b.totals.damage or 0
-        elseif col == "P1Drive" then
-            val_a, val_b = a.totals.p1_drive or 0, b.totals.p1_drive or 0
-        elseif col == "P1Super" then
-            val_a, val_b = a.totals.p1_super or 0, b.totals.p1_super or 0
-        elseif col == "P2Drive" then
-            val_a, val_b = a.totals.p2_drive or 0, b.totals.p2_drive or 0
-        elseif col == "P2Super" then
-            val_a, val_b = a.totals.p2_super or 0, b.totals.p2_super or 0
-        elseif col == "P1Pos" then
-            local p1_a, p1_b
-            if a.totals.attacker == 0 then
-                p1_a = a.totals.p1_dir and a.totals.p1_position or -a.totals.p1_position
-            else
-                p1_a = a.totals.p2_dir and a.totals.p1_position or -a.totals.p1_position
-            end
-            if b.totals.attacker == 0 then
-                p1_b = b.totals.p1_dir and b.totals.p1_position or -b.totals.p1_position
-            else
-                p1_b = b.totals.p2_dir and b.totals.p1_position or -b.totals.p1_position
-            end
-            val_a, val_b = p1_a or 0, p1_b or 0
-        elseif col == "P2Pos" then
-             local p2_a, p2_b
-             if a.totals.attacker == 0 then
-                 p2_a = a.totals.p1_dir and a.totals.p2_position or -a.totals.p2_position
-             else
-                 p2_a = not a.totals.p2_dir and -a.totals.p2_position or a.totals.p2_position
-             end
-             if b.totals.attacker == 0 then
-                 p2_b = b.totals.p1_dir and b.totals.p2_position or -b.totals.p2_position
-             else
-                 p2_b = not b.totals.p2_dir and -b.totals.p2_position or b.totals.p2_position
-             end
-             val_a, val_b = p2_a or 0, p2_b or 0
-        elseif col == "Adv" then
-            val_a = (a.totals.attacker == 0) and (a.totals.p1_advantage or 0) or (a.totals.p2_advantage or 0)
-            val_b = (b.totals.attacker == 0) and (b.totals.p1_advantage or 0) or (b.totals.p2_advantage or 0)
-        elseif col == "Gap" then
-            val_a, val_b = a.totals.gap or 0, b.totals.gap or 0
-        else
-            return false
-        end
-        
-        if dir == "asc" then
-            return val_a < val_b
-        else
-            return val_a > val_b
-        end
-    end)
-end
-ComboManager.show_saved_combos = true
-
--- Internal State
-ComboManager.player_states = {
-    [0] = {
-        started = false,
-        finished = false,
-        attacker = 0,
-        defender = 1,
-        start = { p1 = {}, p2 = {}, match = {} },
-        finish = { p1 = {}, p2 = {}, match = {} },
-        p1_inputs = {},
-        p2_inputs = {},
-    },
-    [1] = {
-        started = false,
-        finished = false,
-        attacker = 1,
-        defender = 0,
-        start = { p1 = {}, p2 = {}, match = {} },
-        finish = { p1 = {}, p2 = {}, match = {} },
-        p1_inputs = {},
-        p2_inputs = {},
-    }
-}
-ComboManager.p1_prev = {}
-ComboManager.p2_prev = {}
-ComboManager.match_prev = {}
+-- ============================================================================
+-- File I/O
+-- ============================================================================
 
 function ComboManager.load_combos()
     local file_path = SAVE_DIR .. "combo_history.lua"
@@ -536,6 +535,7 @@ function ComboManager.load_combos()
             local status, data = pcall(chunk)
             if status and data then
                 for _, combo in ipairs(data) do
+                    -- Convert old timestamp format
                     if not combo.time and combo.timestamp then
                         combo.time = Utils.parse_timestamp(combo.timestamp)
                     end
@@ -547,7 +547,6 @@ function ComboManager.load_combos()
     
     ComboManager.current_combo_index = #ComboManager.historical_combos
     
-    -- Find max group_id to initialize current_group_id and reset group index
     local max_group = 0
     for _, combo in ipairs(ComboManager.historical_combos) do
         if combo.group_id and combo.group_id > max_group then
@@ -560,15 +559,11 @@ function ComboManager.load_combos()
     ComboManager.update_all_combos()
 end
 
-function ComboManager.refresh_history()
-    ComboManager.all_combos = {}
-    ComboManager.load_combos()
-end
-
 function ComboManager.save_to_file()
     if ComboManager.current_game_mode == 2 and not Config.settings.save_training then
         return false
-    end    
+    end
+    
     local all_to_save = {}
     for _, combo in ipairs(ComboManager.session_combos) do
         table.insert(all_to_save, combo)
@@ -577,9 +572,9 @@ function ComboManager.save_to_file()
         table.insert(all_to_save, combo)
     end
     
-    if #all_to_save > ComboManager.max_combos_to_save then
+    if #all_to_save > ComboManager.MAX_COMBOS_TO_SAVE then
         local limited = {}
-        for i=1, ComboManager.max_combos_to_save do
+        for i = 1, ComboManager.MAX_COMBOS_TO_SAVE do
             table.insert(limited, all_to_save[i])
         end
         all_to_save = limited
@@ -588,27 +583,6 @@ function ComboManager.save_to_file()
     local data_str = "return " .. Utils.serialize(all_to_save)
     fs.write(COMBO_DATA_PATH, data_str)
     return true
-end
-
-function ComboManager.clear_combo_windows()
-    ComboManager.p1_prev = {}
-    ComboManager.p2_prev = {}
-    ComboManager.player_states[0].started = false
-    ComboManager.player_states[0].finished = false
-    ComboManager.player_states[1].started = false
-    ComboManager.player_states[1].finished = false
-end
-
-function ComboManager.clear_all_combos()
-    ComboManager.historical_combos = {}
-    ComboManager.session_combos = {}
-    ComboManager.all_combos = {}
-    ComboManager.current_combo_index = 0
-end
-
-function ComboManager.delete_history()
-    ComboManager.clear_all_combos()
-    ComboManager.save_to_file()
 end
 
 function ComboManager.backup_history(name)
@@ -626,110 +600,179 @@ function ComboManager.backup_history(name)
     fs.write(combo_save_path, data_str)
 end
 
-function ComboManager.save_combo(player_idx)
-    local state = ComboManager.player_states[player_idx]
-    if state.finished and state.start.p1 and state.start.p2 and state.finish.p1 and state.finish.p2 then
-        local game_mode = state.start.match.game_mode
+-- ============================================================================
+-- Data Management
+-- ============================================================================
 
-        if game_mode and game_mode ~= 2 then
-            local finish_match = state.finish.match
-            local current_round = finish_match and finish_match.round or -1
-            local current_timer = (finish_match and finish_match.timer and finish_match.timer.total_frames_remaining) or -1
+function ComboManager.refresh_history()
+    ComboManager.all_combos = {}
+    ComboManager.load_combos()
+end
+
+function ComboManager.clear_combo_windows()
+    ComboManager.p1_prev = {}
+    ComboManager.p2_prev = {}
+    
+    for i = 0, 1 do
+        ComboManager.player_states[i].started = false
+        ComboManager.player_states[i].finished = false
+    end
+end
+
+function ComboManager.clear_all_combos()
+    ComboManager.historical_combos = {}
+    ComboManager.session_combos = {}
+    ComboManager.all_combos = {}
+    ComboManager.current_combo_index = 0
+end
+
+function ComboManager.delete_history()
+    ComboManager.clear_all_combos()
+    ComboManager.save_to_file()
+end
+
+-- ============================================================================
+-- Combo Detection & Saving
+-- ============================================================================
+
+local function is_defender_grounded(p1, p2, attacker_idx)
+    local defender = (attacker_idx == 0) and p2 or p1
+    return defender.pos_y == 0
+end
+
+local function is_duplicate_combo(finish_match, session_combos)
+    local current_round = finish_match and finish_match.round or -1
+    local current_timer = (finish_match and finish_match.timer and finish_match.timer.total_frames_remaining) or -1
+    
+    for _, existing_combo in ipairs(session_combos) do
+        if existing_combo.finish and existing_combo.finish.match then
+            local ex_round = existing_combo.finish.match.round or -1
+            local ex_timer = (existing_combo.finish.match.timer and existing_combo.finish.match.timer.total_frames_remaining) or -1
             
-            for _, existing_combo in ipairs(ComboManager.session_combos) do
-                if existing_combo.finish and existing_combo.finish.match then
-                    local ex_round = existing_combo.finish.match.round or -1
-                    local ex_timer = (existing_combo.finish.match.timer and existing_combo.finish.match.timer.total_frames_remaining) or -1
-                    
-                    if current_round == ex_round and current_timer == ex_timer then
-                        log.info(string.format("Duplicate combo detected (Round %d, Timer %d), skipping save", current_round + 1, current_timer))
-                        return false
-                    end
-                end
+            if current_round == ex_round and current_timer == ex_timer then
+                log.info(string.format("Duplicate combo detected (Round %d, Timer %d), skipping save", current_round + 1, current_timer))
+                return true
             end
         end
-        
-        local total_damage = 0
-        local damage_pct = 0
-        local attacker_idx = state.attacker
-        if attacker_idx == 0 then
-            total_damage = state.finish.p1.combo_damage
-            damage_pct = (total_damage / state.finish.p2.hp_cap) * 100
-        elseif attacker_idx == 1 then
-            total_damage = state.finish.p2.combo_damage
-            damage_pct = (total_damage / state.finish.p2.hp_cap) * 100
-        end
-        
-        local p1_char_dict = GameData.get_char_dict(tostring(state.finish.p1.char_id))
-        local p2_char_dict = GameData.get_char_dict(tostring(state.finish.p2.char_id))
-        local p1_action_ids = Utils.format_action_id_list(state.finish.p1.inputs)
-        local p2_action_ids = Utils.format_action_id_list(state.finish.p2.inputs)
-        
-        local combo_data = {
-            index = ComboManager.current_combo_index,
-            group_id = ComboManager.current_group_id,
-            group_index = ComboManager.group_combo_index,
-            start = {
-                p1 = Utils.deep_copy(state.start.p1),
-                p2 = Utils.deep_copy(state.start.p2),
-                match = Utils.deep_copy(state.start.match)
-            },
-            finish = {
-                p1 = Utils.deep_copy(state.finish.p1),
-                p2 = Utils.deep_copy(state.finish.p2),
-                match = Utils.deep_copy(state.finish.match)
-            },
-            totals = {
-                gap = state.finish.p1.gap or 0,
-                attacker = attacker_idx,
-                damage = total_damage,
-                damage_pct = damage_pct,
-                p1_char_id = state.finish.p1.char_id,
-                p1_char_name = state.finish.p1.char_name,
-                p1_dir = state.finish.p1.dir,
-                p1_advantage = state.finish.p1.advantage,
-                p1_drive = (state.finish.p1.drive_adjusted or 0) - (state.start.p1.drive_adjusted or 0),
-                p1_super = (state.finish.p1.super or 0) - (state.start.p1.super or 0),
-                p1_position = (state.finish.p1.pos_x or 0) - (state.start.p1.pos_x or 0),
-                p1_actions = p1_action_ids,
-                p1_actions_named = Utils.format_named_action_list(p1_action_ids, p1_char_dict) or {},
-                p2_char_id = state.finish.p2.char_id,
-                p2_char_name = state.finish.p2.char_name,                
-                p2_dir = state.finish.p2.dir,
-                p2_advantage = state.finish.p2.advantage,
-                p2_drive = (state.finish.p2.drive_adjusted or 0) - (state.start.p2.drive_adjusted or 0),
-                p2_super = (state.finish.p2.super or 0) - (state.start.p2.super or 0),
-                p2_position = (state.finish.p2.pos_x or 0 ) - (state.start.p2.pos_x or 0),
-                p2_actions = p2_action_ids,
-                p2_actions_named = Utils.format_named_action_list(p2_action_ids, p2_char_dict) or {}
-            }
-        }
-        
-        local p1_start_gauge = state.start.p1.drive_adjusted or 0
-        local p1_end_gauge = state.finish.p1.drive_adjusted or 0
-        if p1_start_gauge > 0 and p1_end_gauge < 0 then
-            combo_data.totals.p1_drive = - (p1_start_gauge) + (60000 + p1_end_gauge)
-        end
-        
-        local p2_start_gauge = state.start.p2.drive_adjusted or 0
-        local p2_end_gauge = state.finish.p2.drive_adjusted or 0
-        if p2_start_gauge > 0 and p2_end_gauge < 0 then
-            combo_data.totals.p2_drive = - (p2_start_gauge) + (60000 + p2_end_gauge)
-        end
-        
-        combo_data.time = os.time()
-        
-        table.insert(ComboManager.session_combos, 1, combo_data)
-        ComboManager.current_combo_index = ComboManager.current_combo_index + 1
-        ComboManager.group_combo_index = ComboManager.group_combo_index + 1
-        ComboManager.update_all_combos()
-        return true
     end
+    
     return false
 end
 
-function ComboManager.handle_dr_adjustment(p1, p2, attacker_idx)
-    local state = ComboManager.player_states[attacker_idx]
+local function calculate_damage(state)
+    local attacker_idx = state.attacker
+    local total_damage, damage_pct = 0, 0
+    
+    if attacker_idx == 0 then
+        total_damage = state.finish.p1.combo_damage
+        damage_pct = (total_damage / state.finish.p2.hp_cap) * 100
+    elseif attacker_idx == 1 then
+        total_damage = state.finish.p2.combo_damage
+        damage_pct = (total_damage / state.finish.p1.hp_cap) * 100
+    end
+    
+    return total_damage, damage_pct
+end
+
+local function adjust_drive_gauge(start_gauge, end_gauge)
+    if start_gauge > 0 and end_gauge < 0 then
+        return -(start_gauge) + (60000 + end_gauge)
+    end
+    return end_gauge - start_gauge
+end
+
+local function create_combo_data(state)
+    local total_damage, damage_pct = calculate_damage(state)
+    local p1_char_dict = GameData.get_char_dict(tostring(state.finish.p1.char_id))
+    local p2_char_dict = GameData.get_char_dict(tostring(state.finish.p2.char_id))
+    local p1_action_ids = Utils.format_action_id_list(state.finish.p1.inputs)
+    local p2_action_ids = Utils.format_action_id_list(state.finish.p2.inputs)
+    
+    local combo_data = {
+        index = ComboManager.current_combo_index,
+        group_id = ComboManager.current_group_id,
+        group_index = ComboManager.group_combo_index,
+        time = os.time(),
+        start = {
+            p1 = Utils.deep_copy(state.start.p1),
+            p2 = Utils.deep_copy(state.start.p2),
+            match = Utils.deep_copy(state.start.match)
+        },
+        finish = {
+            p1 = Utils.deep_copy(state.finish.p1),
+            p2 = Utils.deep_copy(state.finish.p2),
+            match = Utils.deep_copy(state.finish.match)
+        },
+        totals = {
+            gap = state.finish.p1.gap or 0,
+            attacker = state.attacker,
+            damage = total_damage,
+            damage_pct = damage_pct,
+            
+            -- P1 data
+            p1_char_id = state.finish.p1.char_id,
+            p1_char_name = state.finish.p1.char_name,
+            p1_dir = state.finish.p1.dir,
+            p1_advantage = state.finish.p1.advantage,
+            p1_drive = adjust_drive_gauge(
+                state.start.p1.drive_adjusted or 0,
+                state.finish.p1.drive_adjusted or 0
+            ),
+            p1_super = (state.finish.p1.super or 0) - (state.start.p1.super or 0),
+            p1_position = (state.finish.p1.pos_x or 0) - (state.start.p1.pos_x or 0),
+            p1_actions = p1_action_ids,
+            p1_actions_named = Utils.format_named_action_list(p1_action_ids, p1_char_dict) or {},
+            
+            -- P2 data
+            p2_char_id = state.finish.p2.char_id,
+            p2_char_name = state.finish.p2.char_name,
+            p2_dir = state.finish.p2.dir,
+            p2_advantage = state.finish.p2.advantage,
+            p2_drive = adjust_drive_gauge(
+                state.start.p2.drive_adjusted or 0,
+                state.finish.p2.drive_adjusted or 0
+            ),
+            p2_super = (state.finish.p2.super or 0) - (state.start.p2.super or 0),
+            p2_position = (state.finish.p2.pos_x or 0) - (state.start.p2.pos_x or 0),
+            p2_actions = p2_action_ids,
+            p2_actions_named = Utils.format_named_action_list(p2_action_ids, p2_char_dict) or {},
+        }
+    }
+    
+    return combo_data
+end
+
+function ComboManager.save_combo(player_idx)
+    local state = ComboManager.player_states[player_idx]
+    
+    if not (state.finished and state.start.p1 and state.start.p2 and state.finish.p1 and state.finish.p2) then
+        return false
+    end
+    
+    local game_mode = state.start.match.game_mode
+    
+    -- Check for duplicates in non-training modes
+    if game_mode and game_mode ~= 2 then
+        if is_duplicate_combo(state.finish.match, ComboManager.session_combos) then
+            return false
+        end
+    end
+    
+    local combo_data = create_combo_data(state)
+    
+    table.insert(ComboManager.session_combos, 1, combo_data)
+    ComboManager.current_combo_index = ComboManager.current_combo_index + 1
+    ComboManager.group_combo_index = ComboManager.group_combo_index + 1
+    ComboManager.update_all_combos()
+    
+    return true
+end
+
+-- ============================================================================
+-- Combo Tracking
+-- ============================================================================
+
+local function adjust_drive_for_cooldown(state, p1, p2, attacker_idx)
     if attacker_idx == 0 then
         if p1.drive_cooldown > 200 then
             state.start.p1.drive_adjusted = state.start.p1.drive_adjusted + 10000
@@ -747,6 +790,7 @@ end
 
 function ComboManager.on_combo_start(p1, p2, match_data, attacker_idx, defender_idx)
     local state = ComboManager.player_states[attacker_idx]
+    
     state.attacker = attacker_idx
     state.defender = defender_idx
     state.started = true
@@ -758,14 +802,16 @@ function ComboManager.on_combo_start(p1, p2, match_data, attacker_idx, defender_
     state.start.p2 = Utils.deep_copy(ComboManager.p2_prev)
     state.start.match = Utils.deep_copy(ComboManager.match_prev)
     
-    ComboManager.handle_dr_adjustment(p1, p2, attacker_idx)
+    adjust_drive_for_cooldown(state, p1, p2, attacker_idx)
 end
 
 function ComboManager.track_inputs(p1, p2, player_idx)
     local state = ComboManager.player_states[player_idx]
+    
     if state.p1_inputs[#state.p1_inputs] ~= p1.action_id then
         table.insert(state.p1_inputs, p1.action_id)
     end
+    
     if state.p2_inputs[#state.p2_inputs] ~= p2.action_id then
         table.insert(state.p2_inputs, p2.action_id)
     end
@@ -773,6 +819,7 @@ end
 
 function ComboManager.on_combo_update(p1, p2, match_data, player_idx)
     local state = ComboManager.player_states[player_idx]
+    
     state.finish.p1 = Utils.deep_copy(p1)
     state.finish.p1.inputs = state.p1_inputs
     state.finish.p2 = Utils.deep_copy(p2)
@@ -782,52 +829,44 @@ end
 
 function ComboManager.on_combo_finish(p1, p2, match_data, player_idx)
     local state = ComboManager.player_states[player_idx]
+    
     ComboManager.on_combo_update(p1, p2, match_data, player_idx)
     state.finished = true
     state.started = false
     
-    -- Save combo to session (not to file yet)
     ComboManager.save_combo(player_idx)
     
     state.p1_inputs = {}
     state.p2_inputs = {}
 end
 
+-- ============================================================================
+-- Main Update Loop
+-- ============================================================================
+
 function ComboManager.check_started(p1, p2, match_data)
-    for i=0, 1 do
-        local state = ComboManager.player_states[i] or {}
-        local p = (i == 0) and p1 or p2
-        local opp = (i == 0) and p2 or p1
+    for i = 0, 1 do
+        local state = ComboManager.player_states[i]
+        local player = (i == 0) and p1 or p2
+        local opponent = (i == 0) and p2 or p1
         
-        if not state.started then
-            if p.combo_count > 0 and opp.hp_current > 0 then
-                ComboManager.on_combo_start(p1, p2, match_data, i, 1 - i)
-            end
+        if not state.started and player.combo_count > 0 and opponent.hp_current > 0 then
+            ComboManager.on_combo_start(p1, p2, match_data, i, 1 - i)
         end
     end
 end
 
 function ComboManager.check_finished(p1, p2, match_data)
-    for i=0, 1 do
+    for i = 0, 1 do
         local state = ComboManager.player_states[i]
+        
         if state.started then
-            local is_knockdown = false
-            local is_finished = false
+            local player = (i == 0) and p1 or p2
+            local opponent = (i == 0) and p2 or p1
+            local opponent_prev = (i == 0) and ComboManager.p2_prev or ComboManager.p1_prev
             
-            local p = (i == 0) and p1 or p2
-            local opp = (i == 0) and p2 or p1
-            local p_prev = (i == 0) and ComboManager.p1_prev or ComboManager.p2_prev
-            local opp_prev = (i == 0) and ComboManager.p2_prev or ComboManager.p1_prev
-
-            -- Check for death
-            if opp.death_count ~= opp_prev.death_count then
-                is_finished = true
-            end
-
-            -- Check for combo counter reset
-            if p.combo_count == 0 then
-                is_knockdown = true
-            end
+            local is_finished = opponent.death_count ~= opponent_prev.death_count
+            local is_knockdown = player.combo_count == 0
             
             if is_finished or is_knockdown then
                 ComboManager.on_combo_finish(p1, p2, match_data, i)
@@ -840,15 +879,17 @@ end
 
 function ComboManager.update_state(p1, p2, match_data)
     ComboManager.check_started(p1, p2, match_data)
-    for i=0, 1 do
+    
+    for i = 0, 1 do
         local state = ComboManager.player_states[i]
         if state.started and not state.finished then
             ComboManager.track_inputs(p1, p2, i)
         end
     end
-
+    
     ComboManager.check_finished(p1, p2, match_data)
-
+    
+    -- Update previous frame data
     ComboManager.p1_prev = p1
     ComboManager.p2_prev = p2
     ComboManager.match_prev = match_data
@@ -1447,6 +1488,9 @@ end
 
 function UI.render_windows()
     local cm = ComboManager
+
+    window_font = imgui.load_font(nil, 20)
+imgui.push_font(window_font)
     if UI.was_key_down(F2_KEY) then
         Config.settings.show_combo_windows = not Config.settings.show_combo_windows
         Config.save()
@@ -1474,36 +1518,14 @@ function UI.render_windows()
     if #cm.all_combos > 0 then
         UI.render_session_window()
     end
+
+    imgui.pop_font()
 end
 
 function UI.render_settings()
     local cm = ComboManager
     if imgui.tree_node("Combo Data") then
         local changed = false
-        changed, Config.settings.autosave = imgui.checkbox("Save Sessions", Config.settings.autosave)
-        if changed then
-            Config.save()
-        end
-        
-        changed, Config.settings.save_training = imgui.checkbox("Save Training Combos", Config.settings.save_training)
-        if changed then
-            Config.save()
-        end
-        changed, Config.settings.show_history = imgui.checkbox("Load History", Config.settings.show_history)
-        if changed then
-            Config.save()
-            cm.update_all_combos()
-        end
-
-        if Config.settings.show_history then
-            imgui.same_line()
-            imgui.set_next_item_width(60)
-            changed, Config.settings.history_limit = imgui.drag_int("Limit", Config.settings.history_limit, 1, 0, 1000)
-            if changed then
-                Config.save()
-                cm.update_all_combos()
-            end
-        end
         
         imgui.separator()
         imgui.text("Combo Windows")
@@ -1527,13 +1549,40 @@ function UI.render_settings()
         end
 
         imgui.separator()
+
+        imgui.text("Session Window")
         
-        changed, Config.settings.show_session_window = imgui.checkbox("Toggle Session Window (F3)", Config.settings.show_session_window)
+        changed, Config.settings.show_session_window = imgui.checkbox("Toggle (F3)", Config.settings.show_session_window)
         if changed then
             Config.save()
             UI.show_session = Config.settings.show_session_window
         end
-        
+
+        changed, Config.settings.autosave = imgui.checkbox("Save Sessions", Config.settings.autosave)
+        if changed then
+            Config.save()
+        end
+            
+        changed, Config.settings.save_training = imgui.checkbox("Save Training Combos", Config.settings.save_training)
+        if changed then
+            Config.save()
+        end
+        changed, Config.settings.show_history = imgui.checkbox("Load History", Config.settings.show_history)
+        if changed then
+            Config.save()
+            cm.update_all_combos()
+        end
+
+        if Config.settings.show_history then
+            imgui.same_line()
+            imgui.set_next_item_width(60)
+            changed, Config.settings.history_limit = imgui.drag_int("Limit", Config.settings.history_limit, 1, 0, 1000)
+            if changed then
+                Config.save()
+                cm.update_all_combos()
+            end
+        end
+
         local total_count = #cm.session_combos + #cm.historical_combos
         if total_count > 0 then
             if imgui.button("Delete History") then
@@ -1574,6 +1623,7 @@ function UI.render_settings()
                 imgui.end_popup()
             end
         end
+        imgui.separator()
         imgui.tree_pop()
     end
 end
@@ -1596,10 +1646,10 @@ if Config.settings.show_p2_combo_window == nil then
 end
 Config.save()
 
-
 re.on_script_reset(function()
 ComboManager.save_to_file()
     ComboManager.clear_all_combos()
+
 end)
 
 re.on_draw_ui(function()

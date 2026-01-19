@@ -370,7 +370,7 @@ re.on_frame(function()
 			-- Vitals info
 			imgui.set_next_item_open(true, 2)
 			if imgui.tree_node("Vitals") then
-				imgui.multi_color("Gap:", string.format("%.1f", p1.gap) .. " (" .. string.format("%.0f", p1.gap_pct) .. "%)")
+				imgui.multi_color("Gap:", string.format("%.0f", p1.gap) .. " (" .. string.format("%.0f", p1.gap_pct) .. "%)")
 				imgui.multi_color("Advantage:", p1.advantage)
 				if (p1.dir and p1.posX <= left_wall_dr_splat_pos) or (not p1.dir and p1.posX >= right_wall_dr_splat_pos) then
 					imgui.multi_color("P1 Pos:", string.format("%.1f", p1.posX) or "", 0XFFFFEA00)
