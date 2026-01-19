@@ -1,4 +1,4 @@
-local F3_KEY = 0X72
+local F4_KEY = 0x73
 
 local changed
 local p1_hit_dt
@@ -361,7 +361,7 @@ re.on_frame(function()
     if sPlayer.prev_no_push_bit ~= 0 then
 		handle_player_data()
 
-		if was_key_down(F3_KEY) then
+		if was_key_down(F4_KEY) then
 			hide_ui = not hide_ui
 		end
 		
