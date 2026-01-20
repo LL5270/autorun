@@ -205,7 +205,7 @@ function UI.render_combo_window_table(state)
         
     
     if imgui.begin_table("combo_table_p" .. tostring(state.attacker + 1), 10, 8192 | 64) then
-        imgui.table_setup_column(is_p1 and "P1" or "P2", 18, 50)
+        imgui.table_setup_column("", 18, 50)
         imgui.table_setup_column("Damage", 18, 0)
         imgui.table_setup_column("P1Drive", 18, 0)
         imgui.table_setup_column("P1Super", 18, 0)
@@ -217,8 +217,6 @@ function UI.render_combo_window_table(state)
         imgui.table_setup_column("Gap", 18, 0)
         imgui.table_headers_row()
         imgui.table_next_row()
-
-
 
         local t_hp = is_p1 and (state.start.p2.hp_current - state.finish.p2.hp_current) or (state.start.p1.hp_current - state.finish.p1.hp_current)
         local t_p1_drv = state.finish.p1.drive_adjusted - state.start.p1.drive_adjusted
@@ -237,16 +235,16 @@ function UI.render_combo_window_table(state)
             t_p2_carry = math.abs(state.finish.p2.pos_x - state.start.p2.pos_x)
         end
 
-        -- Row 1: Start
         if not minimal_view then
             imgui.table_set_column_index(0); imgui.text("Start")
             imgui.table_set_column_index(1); imgui.text(tostring(is_p1 and state.start.p2.hp_current or state.start.p1.hp_current))
             UI.render_columns(2, state.start.p1.drive_adjusted, state.start.p1.super, state.start.p2.drive_adjusted, state.start.p2.super, state.start.p1.pos_x, state.start.p2.pos_x, 0, 0, false)
             imgui.table_next_row()
 
-            -- Row 2: Current/Finish
-            imgui.table_set_column_index(0); imgui.text("Current")
-            imgui.table_set_column_index(1); imgui.text(tostring(is_p1 and state.finish.p2.hp_current or state.finish.p1.hp_current))
+            imgui.table_set_column_index(0)
+            if state.finished then imgui.text("End") else imgui.text("Current") end
+            imgui.table_set_column_index(1)
+            if state.finished then imgui.text(tostring(is_p1 and state.finish.p2.hp_current or state.finish.p1.hp_current)) else imgui.text("") end
             UI.render_columns(2, state.finish.p1.drive_adjusted, state.finish.p1.super, state.finish.p2.drive_adjusted, state.finish.p2.super, state.finish.p1.pos_x, state.finish.p2.pos_x, 0, 0, false)
         end
         
