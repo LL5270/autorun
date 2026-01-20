@@ -140,19 +140,20 @@ UI.prev_key_states = {}
 UI.combo_window_fixed_width = 150
 UI.save_pending = false
 UI.save_timer = 0
+UI.key_ready = false
 
 function UI.was_key_down(i)
     local down = reframework:is_key_down(i)
-    local prev = UI.prev_key_states[i] or false
+    local prev = UI.prev_key_states[i]
     UI.prev_key_states[i] = down
     return down and not prev
 end
 
-function UI.was_key_up(i)
-    local down = reframework:is_key_down(i)
-    local prev = UI.prev_key_states[i] or false
-    UI.prev_key_states[i] = down
-    return not down and prev
+function UI.hotkey_handler()
+	if UI.was_key_down(F2_KEY) then
+		Config.settings.toggle_all = not Config.settings.toggle_all
+		UI.mark_for_save()
+	end
 end
 
 function UI.mark_for_save()
@@ -272,7 +273,6 @@ function UI.render_windows()
     local center_x, window_y = display.x * 0.5, display.y * 0.004
     imgui.push_font(imgui.load_font(nil, 22))
 
-    -- PRESERVED FIXED POSITIONING (Cond_Always 1<<1)
     if Config.settings.toggle_p1 then
         local state = ComboWindow.player_states[0]
         if state.started or state.finished then
@@ -322,6 +322,16 @@ function UI.render_settings()
     end
 end
 
+function UI.key_handler()
+    if not UI.key_ready and not reframework:is_key_down(F2_KEY) then 
+        UI.key_ready = true
+        return
+    elseif UI.key_ready and reframework:is_key_down(F2_KEY) then
+        Config.settings.toggle_all = not Config.settings.toggle_all
+        UI.mark_for_save()
+    end
+end
+
 -----------------------------------------------------------------------------
 -- Main
 -----------------------------------------------------------------------------
@@ -330,18 +340,14 @@ re.on_draw_ui(function()
 end)
 
 re.on_frame(function()
-    if reframework:is_key_down(F2_KEY) then
-        Config.settings.toggle_all = not Config.settings.toggle_all
-        UI.mark_for_save()
-    end
-    
     local sPlayer, cPlayer, cTeam = GameData.get_sdk_pointers()
     if sPlayer and sPlayer.prev_no_push_bit ~= 0 then
-        UI.save_handler()
         local p1 = GameData.map_player_data(0, cPlayer, cTeam)
         local p2 = GameData.map_player_data(1, cPlayer, cTeam)
+        UI.hotkey_handler()
         ComboWindow.update_state(p1, p2)
         UI.render_windows()
+        UI.save_handler()
     end
 end)
 
