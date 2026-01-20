@@ -225,12 +225,17 @@ function UI.render_combo_window_table(state)
         local t_p1_sup = state.finish.p1.super - state.start.p1.super
         local t_p2_drv = state.finish.p2.drive_adjusted - state.start.p2.drive_adjusted
         local t_p2_sup = state.finish.p2.super - state.start.p2.super
-        
+                
         local t_p1_carry, t_p2_carry = 0, 0
         local cur_dir = (state.attacker == 0) and state.finish.p1.dir or state.finish.p2.dir
-        t_p1_carry = cur_dir and (state.finish.p1.pos_x - state.start.p1.pos_x) or (state.start.p1.pos_x - state.finish.p1.pos_x)
-        t_p2_carry = cur_dir and (state.finish.p2.pos_x - state.start.p2.pos_x) or (state.start.p2.pos_x - state.finish.p2.pos_x)
 
+        if state.attacker == 0 then
+            t_p1_carry = math.abs(state.finish.p1.pos_x - state.start.p1.pos_x)
+            t_p2_carry = math.abs(state.start.p2.pos_x - state.finish.p2.pos_x)
+        else
+            t_p1_carry = math.abs(state.start.p1.pos_x - state.finish.p1.pos_x)
+            t_p2_carry = math.abs(state.finish.p2.pos_x - state.start.p2.pos_x)
+        end
 
         -- Row 1: Start
         if not minimal_view then
@@ -267,7 +272,7 @@ function UI.render_windows()
     if not Config.settings.toggle_all then return end
     local display = imgui.get_display_size()
     local center_x, window_y = display.x * 0.5, display.y * 0.004
-    imgui.push_font(imgui.load_font(nil, 23))
+    imgui.push_font(imgui.load_font(nil, 22))
 
     -- PRESERVED FIXED POSITIONING (Cond_Always 1<<1)
     if Config.settings.toggle_p1 then
