@@ -751,7 +751,6 @@ function ComboManager.save_combo(player_idx)
     
     local game_mode = state.start.match.game_mode
     
-    -- Check for duplicates in non-training modes
     if game_mode and game_mode ~= 2 then
         if is_duplicate_combo(state.finish.match, ComboManager.session_combos) then
             return false
