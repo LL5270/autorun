@@ -186,7 +186,7 @@ function UI.get_font_size(size)
     return imgui.push_font(imgui.load_font(nil, size))
 end
 
-function UI.large_font() return UI.get_font_size(28) end
+function UI.large_font() return UI.get_font_size(30) end
 function UI.medium_font() return UI.get_font_size(24) end
 function UI.small_font() return UI.get_font_size(16) end
 
@@ -245,7 +245,7 @@ end
 
 
 
-UI.col_widths = {46, 60, 55, 50, 55, 45, 45, 50, 42, 60}
+UI.col_widths = {50, 60, 55, 55, 55, 55, 50, 50, 42, 60}
 UI.combo_window_fixed_width = 0
 for _, w in ipairs(UI.col_widths) do
     UI.combo_window_fixed_width = UI.combo_window_fixed_width + w
@@ -321,16 +321,11 @@ function UI.render_combo_window_table(state)
         imgui.table_next_row()
         UI.large_font()
         local function adjust_finish(finish, start)
-            if finish < 0 then
-                finish = finish + 60000
-            end
+            if finish < 0 then finish = finish + 60000 end
             return finish - start
         end
-
         process_columns({
-            is_p1 and (state.start.p2.hp_current - state.finish.p2.hp_current)
-                or (state.start.p1.hp_current - state.finish.p1.hp_current),
-
+            is_p1 and (state.start.p2.hp_current - state.finish.p2.hp_current) or (state.start.p1.hp_current - state.finish.p1.hp_current),
             adjust_finish(state.finish.p1.drive_adjusted, state.start.p1.drive_adjusted),
             state.finish.p1.super - state.start.p1.super,
             adjust_finish(state.finish.p2.drive_adjusted, state.start.p2.drive_adjusted),
@@ -340,7 +335,6 @@ function UI.render_combo_window_table(state)
             is_p1 and state.finish.p1.gap or state.finish.p2.gap,
             is_p1 and state.finish.p1.advantage or state.finish.p2.advantage,
         }, true)
-
         imgui.pop_font()
 
         imgui.end_table()
