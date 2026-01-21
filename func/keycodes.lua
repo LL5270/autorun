@@ -193,7 +193,55 @@ local keycodes = {
     ZOOM = 0xFB,
     NONAME = 0xFC,
     PA1 = 0xFD,
-    OEM_CLEAR = 0xFE
+    OEM_CLEAR = 0xFE,
+
+    -- D-Pad
+    PAD_DPAD_UP = 0x5820,
+    PAD_DPAD_DOWN = 0x5821,
+    PAD_DPAD_LEFT = 0x5822,
+    PAD_DPAD_RIGHT = 0x5823,
+    
+    -- Face Buttons
+    PAD_A = 0x5800,
+    PAD_B = 0x5801,
+    PAD_X = 0x5802,
+    PAD_Y = 0x5803,
+    
+    -- Shoulder Buttons
+    PAD_LSHOULDER = 0x5804,  -- Left bumper
+    PAD_RSHOULDER = 0x5805,  -- Right bumper
+    
+    -- Triggers
+    PAD_LTRIGGER = 0x5806,
+    PAD_RTRIGGER = 0x5807,
+    
+    -- Special Buttons
+    PAD_START = 0x5808,
+    PAD_BACK = 0x5809,
+    
+    -- Thumbstick Buttons
+    PAD_LTHUMB_PRESS = 0x580A,  -- Left stick click
+    PAD_RTHUMB_PRESS = 0x580B,  -- Right stick click
+    
+    -- Left Thumbstick Directional
+    PAD_LTHUMB_UP = 0x5810,
+    PAD_LTHUMB_DOWN = 0x5811,
+    PAD_LTHUMB_RIGHT = 0x5812,
+    PAD_LTHUMB_LEFT = 0x5813,
+    PAD_LTHUMB_UPLEFT = 0x5814,
+    PAD_LTHUMB_UPRIGHT = 0x5815,
+    PAD_LTHUMB_DOWNRIGHT = 0x5816,
+    PAD_LTHUMB_DOWNLEFT = 0x5817,
+    
+    -- Right Thumbstick Directional
+    PAD_RTHUMB_UP = 0x5830,
+    PAD_RTHUMB_DOWN = 0x5831,
+    PAD_RTHUMB_RIGHT = 0x5832,
+    PAD_RTHUMB_LEFT = 0x5833,
+    PAD_RTHUMB_UPLEFT = 0x5834,
+    PAD_RTHUMB_UPRIGHT = 0x5835,
+    PAD_RTHUMB_DOWNRIGHT = 0x5836,
+    PAD_RTHUMB_DOWNLEFT = 0x5837,
 }
 
 return keycodes
