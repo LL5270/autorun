@@ -126,13 +126,22 @@ end
 
 function SceneTracker.check_scene_change()
     local new_scene_id = SceneTracker.get_scene_id()
-    if new_scene_id ~= SceneTracker.current_scene_id and SceneTracker.current_scene_id ~= -1 then
+    if new_scene_id ~= SceneTracker.current_scene_id and SceneTracker.current_scene_id ~= -1 then        
+        SceneTracker.current_scene_id = new_scene_id
+        SceneTracker.on_scene_change()
+        return true
+    end
+    SceneTracker.current_scene_id = new_scene_id
+    return false
+end
+
+function SceneTracker.on_scene_change()
+    if SceneTracker.current_scene_id == 2 or SceneTracker.current_scene_id == 24 then
         -- Scene changed, trigger save if autosave is enabled and there are session combos
-        if Config.settings.autosave and ComboManager.session_combos and #ComboManager.session_combos > 0 then
+        if Config.settings.autosave and ComboManager and ComboManager.session_combos and #ComboManager.session_combos > 0 then
             log.info(string.format("Scene changed from %d to %d, saving %d session combos", 
                 SceneTracker.current_scene_id, new_scene_id, #ComboManager.session_combos))
             ComboManager.save_to_file()
-        end
 
         -- Clear combo windows
         ComboManager.clear_combo_windows()
@@ -144,12 +153,8 @@ function SceneTracker.check_scene_change()
         -- Increment group ID and reset local index for the new scene
         ComboManager.current_group_id = ComboManager.current_group_id + 1
         ComboManager.group_combo_index = 0
-        
-        SceneTracker.current_scene_id = new_scene_id
-        return true
+        end
     end
-    SceneTracker.current_scene_id = new_scene_id
-    return false
 end
 
 -----------------------------------------------------------------------------
@@ -1452,12 +1457,12 @@ re.on_draw_ui(function()
 end)
 
 re.on_frame(function()
-    SceneTracker.check_scene_change()
     
     local sPlayer, _, _ = GameData.get_sdk_pointers()
     if not sPlayer then return end
     
     if sPlayer.prev_no_push_bit ~= 0 then
+        SceneTracker.check_scene_change()
         local p1, p2, match_data = GameData.process_battle_info()
         if p1 and p2 then
             ComboManager.update_state(p1, p2, match_data)
