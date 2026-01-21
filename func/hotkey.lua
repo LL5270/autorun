@@ -1,55 +1,34 @@
--- Usage:
----- local hotkey = require("func/hotkey")
----- hotkey(some_function, {"CONTROL", "alt", "X"})
----- hotkey(some_function, {0x11, 0x12, 0x58})
+-- Usage
+-- local hotkey_fn = hotkey(some_function(), {keycodes.CONTROL, keycodes.F7}, true)
+-- re.on_frame(function() hotkey_fn() end)
 
 local reframework = reframework
-
-local keycodes = require("func/keycodes")
-
-local function hotkey(f, _keys)
-    if not f or type(f) ~= "function" then return false end
-    if not _keys or type(_keys) ~= "table" or #_keys == 0 then return false end
-
+local function hotkey(f, keys, hold_mode)
+    if not f or not keys or #keys == 0 then return end
     local self = {}
-    self.keys = {}
+    self.keys = keys
     self.f = f
-    self.key_ready = true
+    self.hold_mode = hold_mode or false
+    self.was_pressed = false
     
-    for _, k in ipairs(_keys) do
-        local key_str = string.upper(tostring(k))
-        if keycodes[key_str] then table.insert(self.keys, keycodes[key_str])
-        else for _k, _v in pairs(keycodes) do
-                if _v == key_str then table.insert(self.keys, _v) break end
-            end
-        end
-    end
-
-    if #self.keys == 0 then return false end
-
     local function check_key(key)
         if not key then return false end
-        local success, result = pcall(function() return reframework:is_key_down(key) end)
-        if not success then return false end
-        return result
+        return reframework:is_key_down(key)
     end
     
-    if self.key_ready then
+    local function all_keys_pressed()
         for _, key in ipairs(self.keys) do
-            if not check_key(key) then
-                self.key_ready = true
-                return true
-            end
+            if not check_key(key) then return false end
         end
-        self.key_ready = false
+        return true
     end
     
-    if not self.key_ready then
-        local success = pcall(self.f)
-        if not success then return false end
+    return function()
+        local is_pressed = all_keys_pressed()
+        if self.hold_mode then
+            if is_pressed then self.f() end
+        elseif is_pressed and not self.was_pressed then self.f() end
+        self.was_pressed = is_pressed
     end
-    
-    return true
 end
-
 return hotkey
