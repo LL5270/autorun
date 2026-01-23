@@ -1,8 +1,4 @@
-local reframework = reframework
-local log = log
-
-local prev_key_states = {}
-
+local reframework = reframework 
 
 -- Mouse buttons
 LBUTTON = 0x01
@@ -248,24 +244,59 @@ PAD_RTHUMB_UPRIGHT = 0x5835
 PAD_RTHUMB_DOWNRIGHT = 0x5836
 PAD_RTHUMB_DOWNLEFT = 0x5837
 
-local prev_key_states = {}
+-- Try to get the REFramework object
+local rf = reframework or re
 
-local function was_key_down(i, hold, modifier)
-    if i == nil then return false end
-    
-    local down = reframework:is_key_down(i)
-    local prev = prev_key_states[i]
-    prev_key_states[i] = down
-    
-    if modifier then
-        local mod_down = false
-        mod_down = reframework:is_key_down(modifier)
-    end
-        
-    if not mod_down then return false end
-    
-    if hold then return down end
-    return down and not prev
+if not rf then
+    error("Could not find REFramework object (reframework or re)")
 end
 
-return was_key_down
+if not rf.is_key_down then
+    error("REFramework object does not have is_key_down method")
+end
+
+local function hotkeys(keys, f, hold_mode)
+    if not keys or #keys == 0 then return function() end end
+    if type(f) ~= "function" then 
+        -- Try to log, but if log is not available, use print
+        if log and log.error then
+            log.error("hotkey: second argument must be a function")
+        else
+            print("hotkey error: second argument must be a function")
+        end
+        return function() end 
+    end
+    
+    local self = {}
+    self.keys = keys
+    self.f = f
+    self.hold_mode = hold_mode or false
+    self.was_pressed = false
+    
+    local function all_keys_pressed()
+        for _, key in ipairs(self.keys) do
+            if not rf:is_key_down(key) then 
+                return false 
+            end
+        end
+        return true
+    end
+    
+    return function()
+        local is_pressed = all_keys_pressed()
+        
+        if self.hold_mode then
+            if is_pressed then 
+                self.f() 
+            end
+        else
+            if is_pressed and not self.was_pressed then 
+                self.f() 
+            end
+        end
+        
+        self.was_pressed = is_pressed
+    end
+end
+
+return hotkeys
