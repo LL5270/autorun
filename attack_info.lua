@@ -162,21 +162,15 @@ UI.save_pending = false
 UI.save_timer = 0
 UI.key_ready = false
 UI.right_click_this_frame = false
-UI.gradient_max = {
-    dmg = 2500,
-    p1_drv = 10000,
-    p1_sup = 3000,
-    p2_drv = 10000,
-    p2_sup = 3000,
-    p1_cry = 10000,
-    p2_cry = 10000,
-    adv = 20,
-    gap = 80,
-}
-
-UI.header_labels = {"Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
-UI.col_widths = {50, 60, 57, 57, 57, 57, 48, 48, 45, 60} -- First value is padding
 UI.combo_window_fixed_width = 0
+
+UI.header_labels = {
+    "Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
+UI.gradient_max = {
+    100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 80, 490}
+UI.col_widths = {
+    50, 60, 59, 59, 59, 59, 45, 45, 45, 60} -- First value is padding
+
 for _, w in ipairs(UI.col_widths) do
     UI.combo_window_fixed_width = UI.combo_window_fixed_width + w
 end
@@ -206,8 +200,8 @@ function UI.get_font_size(size)
     return imgui.push_font(imgui.load_font(nil, size))
 end
 
-function UI.large_font() return UI.get_font_size(30) end
-function UI.medium_font() return UI.get_font_size(24) end
+function UI.large_font() return UI.get_font_size(28) end
+function UI.medium_font() return UI.get_font_size(20) end
 function UI.small_font() return UI.get_font_size(16) end
 
 
@@ -221,23 +215,20 @@ function UI.center_text(text, column_width, draw_fn)
     draw_fn()
 end
 
-function UI.value_to_hex_color(value, max_val)
+function UI.value_to_hex_color(v, max_val)
     max_val = max_val or 7500
-    value = math.max(1, math.min(max_val, value))
+    value = math.max(1, math.min(max_val, v))
     local t = (value - 1) / (max_val - 1)
 
     local r, g, b
-    if t < 0.2 then
-        r, g, b = 0, 255, 255 * (1 - t * 5)
-    elseif t < 0.4 then
-        r, g, b = 255 * ((t - 0.2) * 5), 255, 0
-    elseif t < 0.6 then
-        r, g, b = 255, 255 * (1 - (t - 0.4) * 2.5), 0
-    elseif t < 0.8 then
-        r, g, b = 255, 128 * (1 - (t - 0.6) * 5), 255 * ((t - 0.6) * 5)
-    else
-        r, g, b = 255 * (1 - (t - 0.8) * 5), 255 * ((t - 0.8) * 5), 255
+    if t < 0.2 then r, g, b = 0, 255, 255 * (1 - t * 5)
+    elseif t < 0.4 then r, g, b = 255 * ((t - 0.2) * 5), 255, 0
+    elseif t < 0.6 then r, g, b = 255, 255 * (1 - (t - 0.4) * 2.5), 0
+    elseif t < 0.8 then r, g, b = 255, 128 * (1 - (t - 0.6) * 5), 255 * ((t - 0.6) * 5)
+    else r, g, b = 255 * (1 - (t - 0.8) * 5), 255 * ((t - 0.8) * 5), 255
     end
+
+    if v < 0 then r, g, b = 255, 255, 255 end
 
     return 0xFF000000 + (math.floor(r) << 16) + (math.floor(g) << 8) + math.floor(b)
 end
@@ -245,12 +236,11 @@ end
 function UI.process_columns(values, is_color)
     for i, v in ipairs(values) do
         imgui.table_set_column_index(i - 1)
+        local w = UI.col_widths[i]
         if v ~= 0 then
             local text = string.format("%.0f", v)
-            local w = UI.col_widths[i]
-
             if is_color then
-                local color = UI.value_to_hex_color(v)
+                local color = UI.value_to_hex_color(v, UI.gradient_max[i])
                 UI.center_text(text, w, function()
                     imgui.text_colored(text, color)
                 end)
@@ -259,6 +249,11 @@ function UI.process_columns(values, is_color)
                     imgui.text(text)
                 end)
             end
+        elseif v == 0 then
+            text = "--"
+            UI.center_text(text, w, function()
+                imgui.text(text)
+            end)
         end
     end
 end
@@ -353,7 +348,7 @@ function UI.render_player_combo_window(player_index, title, x, y, toggle_setting
     if not (state.started or state.finished) then return end
 
     imgui.set_next_window_pos(Vector2f.new(x, y), 1 << 3)
-    imgui.set_next_window_size(UI.combo_window_fixed_width, 0, 1 << 1)
+    imgui.set_next_window_size(Vector2f.new(UI.combo_window_fixed_width, 0), 0, 1 << 1)
 
     if imgui.begin_window(title, true, 1 | 8 | 32) then
         if UI.is_toggle_view_clicked() then
@@ -379,7 +374,7 @@ function UI.render_windows()
     UI.right_click_this_frame = UI.was_key_down(RIGHT_CLICK)
 
     local display = imgui.get_display_size()
-    local center_x, window_y = display.x * 0.5, display.y * 0.001
+    local center_x, window_y = display.x * 0.5, 0
     UI.large_font()
 
     if Config.settings.toggle_p1 then
