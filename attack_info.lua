@@ -1,8 +1,3 @@
-local sdk = sdk
-local imgui = imgui
-local re = re
-local json = json
-local reframework = reframework
 
 local CONFIG_PATH = "attack_info.json"
 local SAVE_DELAY = 0.5
@@ -61,6 +56,18 @@ function Utils.bitand(a, b)
     return result
 end
 
+local function is_paused()
+	if not pause_manager then
+		pause_manager = sdk.get_managed_singleton("app.PauseManager")
+	end
+	
+	pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
+	if pause_type_bit == 64 or pause_type_bit == 2112 then
+		return false
+	end
+	return true
+end 
+
 -------------------------
 -- GameObjects
 -------------------------
@@ -88,11 +95,13 @@ function GameObjects.map_player_data(cPlayer, cTeam)
         data.hp_max = player.vital_max or 0
         data.dir = Utils.bitand(player.BitValue or 0, 128) == 128
         data.drive_adjusted = (player.incapacitated) and (player.focus_new - 60000) or player.focus_new
+        data.stance = player.pose_st
         data.super = team and team.mSuperGauge or 0
         data.combo_count = team and team.mComboCount or 0
         data.death_count = team and team.mDeathCount or 0
         data.pos_x = player.pos and (player.pos.x.v / 65536.0) or 0
         data.gap = (player.vs_distance and player.vs_distance.v or 0) / 65536.0
+        
         data.advantage = 0
         if GameObjects.TrainingManager and GameObjects.TrainingManager._tCommon then
             local snap = GameObjects.TrainingManager._tCommon.SnapShotDatas
@@ -118,6 +127,10 @@ ComboData.player_states = {
     [1] = { started = false, finished = false, attacker = 1, start = {}, finish = {} },
 }
 ComboData.p1_prev, ComboData.p2_prev = {}, {}
+
+function is_knockdown(state)
+    
+end
 
 function ComboData.update_state(p1, p2)
     for i = 0, 1 do
@@ -160,6 +173,13 @@ UI.gradient_max = {
     adv = 20,
     gap = 80,
 }
+
+UI.header_labels = {"Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
+UI.col_widths = {50, 60, 57, 57, 57, 57, 48, 48, 45, 60} -- First value is padding
+UI.combo_window_fixed_width = 0
+for _, w in ipairs(UI.col_widths) do
+    UI.combo_window_fixed_width = UI.combo_window_fixed_width + w
+end
 
 function UI.was_key_down(i)
     local down = reframework:is_key_down(i)
@@ -222,7 +242,7 @@ function UI.value_to_hex_color(value, max_val)
     return 0xFF000000 + (math.floor(r) << 16) + (math.floor(g) << 8) + math.floor(b)
 end
 
-function process_columns(values, is_color)
+function UI.process_columns(values, is_color)
     for i, v in ipairs(values) do
         imgui.table_set_column_index(i - 1)
         if v ~= 0 then
@@ -243,19 +263,6 @@ function process_columns(values, is_color)
     end
 end
 
-
-
-UI.col_widths = {50, 60, 55, 55, 55, 55, 50, 50, 42, 60}
-UI.combo_window_fixed_width = 0
-for _, w in ipairs(UI.col_widths) do
-    UI.combo_window_fixed_width = UI.combo_window_fixed_width + w
-end
-
-local HEADER_LABELS = {
-    "Damage","P1 Drive","P1 Super","P2 Drive","P2 Super",
-    "P1 Carry","P2 Carry","Gap", "Adv"
-}
-
 function UI.render_combo_window_table(state)
     local is_p1 = state.attacker == 0
     local minimal_view =
@@ -269,13 +276,13 @@ function UI.render_combo_window_table(state)
         4096 | 8192,
         Vector2f.new(UI.combo_window_fixed_width, 0)
     ) then
-        for i, label in ipairs(HEADER_LABELS) do
+        for i, label in ipairs(UI.header_labels) do
             imgui.table_setup_column(label, 4096, UI.col_widths[i])
         end
 
         UI.small_font()
         imgui.table_next_row()
-        for i, label in ipairs(HEADER_LABELS) do
+        for i, label in ipairs(UI.header_labels) do
             imgui.table_set_column_index(i - 1)
             UI.center_text(label, UI.col_widths[i], function()
                 imgui.text(label)
@@ -287,7 +294,7 @@ function UI.render_combo_window_table(state)
 
         if not minimal_view then
             UI.medium_font()
-            process_columns({
+            UI.process_columns({
                 is_p1 and state.start.p2.hp_current or state.start.p1.hp_current,
                 state.start.p1.drive_adjusted,
                 state.start.p1.super,
@@ -301,7 +308,7 @@ function UI.render_combo_window_table(state)
 
             imgui.table_next_row()
             UI.medium_font()
-            process_columns({
+            UI.process_columns({
                 is_p1 and state.finish.p2.hp_current or state.finish.p1.hp_current,
                 state.finish.p1.drive_adjusted,
                 state.finish.p1.super,
@@ -324,7 +331,7 @@ function UI.render_combo_window_table(state)
             if finish < 0 then finish = finish + 60000 end
             return finish - start
         end
-        process_columns({
+        UI.process_columns({
             is_p1 and (state.start.p2.hp_current - state.finish.p2.hp_current) or (state.start.p1.hp_current - state.finish.p1.hp_current),
             adjust_finish(state.finish.p1.drive_adjusted, state.start.p1.drive_adjusted),
             state.finish.p1.super - state.start.p1.super,
@@ -368,7 +375,7 @@ end
 
 function UI.render_windows()
     UI.handle_hotkeys()
-    if not Config.settings.toggle_all then return end
+    if not Config.settings.toggle_all or is_paused() then return end
     UI.right_click_this_frame = UI.was_key_down(RIGHT_CLICK)
 
     local display = imgui.get_display_size()

@@ -687,7 +687,9 @@ local function get_pause_type_bit()
 		pause_manager = sdk.get_managed_singleton("app.PauseManager")
 	end
 	
-	this.pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
+	if pause_manager then
+		this.pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
+	end
 end
 
 local function is_pause_menu_closed()
@@ -1103,7 +1105,6 @@ local function build_toggler_with_opacity(label, config_suffix, opacity_suffix)
 end
 
 local function build_presets_table()
-	imgui.set_next_item_open(true)
 	if not imgui.begin_table("PresetTable", 3) then
 		return
 	end
@@ -1144,6 +1145,7 @@ local function build_presets_table()
 end
 
 local function build_presets()
+	imgui.set_next_item_open(true, 0 << 1)
 	if not imgui.tree_node("Presets") then
 		return
 	end
@@ -1171,7 +1173,7 @@ local function build_presets()
 end
 
 local function build_toggles()
-	imgui.set_next_item_open(true)
+	imgui.set_next_item_open(true, 0 << 1)
 	if imgui.tree_node("Toggle") then
 		if imgui.begin_table("ToggleTable", 3) then
 			imgui.table_setup_column("", nil, 150)
@@ -1464,7 +1466,6 @@ end
 
 local function build_gui()
 	if this.config.options.display_menu and get_prev_push_bit() ~= 0 then
-		imgui.set_next_item_open(true, 2)
 		imgui.begin_window("Hitboxes", true, 64)
 		build_toggles()
 		build_presets()

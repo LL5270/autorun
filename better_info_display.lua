@@ -33,6 +33,18 @@ local p2ChargeInfo = storageData.UserEngines[1].m_charge_infos
 local sWork = gBattle:get_field("Work"):get_data(nil)
 local cWork = sWork.Global_work
 
+local function is_paused()
+	if not pause_manager then
+		pause_manager = sdk.get_managed_singleton("app.PauseManager")
+	end
+	
+	pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
+	if pause_type_bit == 64 or pause_type_bit == 2112 then
+		return false
+	end
+	return true
+end
+
 local function was_key_down(i)
     local down = reframework:is_key_down(i)
     local prev = prev_key_states[i]
@@ -192,7 +204,13 @@ end
 
 local function handle_player_data()
 	training_manager = sdk.get_managed_singleton("app.training.TrainingManager")
-	display_data = training_manager._tCommon.SnapShotDatas[0]._DisplayData or {}
+	local snap = training_manager
+	if snap then
+		local t_common = snap._tCommon
+		if t_common and t_common.SnapShotDatas then
+			display_data = t_common.SnapShotDatas[0]._DisplayData or {}
+		end
+	end
 	-- Action Engine
 	local p1Engine = cPlayer[0].mpActParam.ActionPart._Engine
 	local p2Engine = cPlayer[1].mpActParam.ActionPart._Engine
@@ -365,7 +383,7 @@ re.on_frame(function()
 			hide_ui = not hide_ui
 		end
 		
-		if display_player_info and not hide_ui then
+		if display_player_info and not hide_ui and not is_paused() then
 			imgui.begin_window("Player Data", true, 1|8)
 			-- Vitals info
 			imgui.set_next_item_open(true, 2)
