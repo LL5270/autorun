@@ -167,7 +167,7 @@ UI.combo_window_fixed_width = 0
 UI.header_labels = {
     "Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
 UI.gradient_max = {
-    100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 80, 490}
+    100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 490, 80}
 UI.col_widths = {
     50, 60, 59, 59, 59, 59, 45, 45, 45, 60} -- First value is padding
 
@@ -217,21 +217,24 @@ end
 
 function UI.value_to_hex_color(v, max_val)
     max_val = max_val or 7500
-    value = math.max(1, math.min(max_val, v))
-    local t = (value - 1) / (max_val - 1)
-
-    local r, g, b
-    if t < 0.2 then r, g, b = 0, 255, 255 * (1 - t * 5)
-    elseif t < 0.4 then r, g, b = 255 * ((t - 0.2) * 5), 255, 0
-    elseif t < 0.6 then r, g, b = 255, 255 * (1 - (t - 0.4) * 2.5), 0
-    elseif t < 0.8 then r, g, b = 255, 128 * (1 - (t - 0.6) * 5), 255 * ((t - 0.6) * 5)
-    else r, g, b = 255 * (1 - (t - 0.8) * 5), 255 * ((t - 0.8) * 5), 255
+    local t = math.max(0, math.min(v / max_val, 1))
+    local u
+    if t < 0.2 then
+        u = t / 0.2
+    else
+        u = math.min((t - 0.2) / 0.3, 1)
     end
-
-    if v < 0 then r, g, b = 255, 255, 255 end
-
-    return 0xFF000000 + (math.floor(r) << 16) + (math.floor(g) << 8) + math.floor(b)
+    local smooth_u = u * u * (3 - 2 * u)
+    local r = t < 0.2 and 255 or 255 * (1 - smooth_u)^0.5
+    local g = t < 0.2 and 255 * (t / 0.2) or 255 * (smooth_u^0.5 + 0.2)
+    r = math.max(0, math.min(255, r))
+    g = math.max(0, math.min(255, g))
+    local b = 0
+    return 0xFF000000 + (math.floor(b) << 16) + (math.floor(g) << 8) + math.floor(r)
 end
+
+
+
 
 function UI.process_columns(values, is_color)
     for i, v in ipairs(values) do
@@ -240,7 +243,7 @@ function UI.process_columns(values, is_color)
         if v ~= 0 then
             local text = string.format("%.0f", v)
             if is_color then
-                local color = UI.value_to_hex_color(v, UI.gradient_max[i])
+                local color = UI.value_to_hex_color(v, UI.gradient_max[i + 1])
                 UI.center_text(text, w, function()
                     imgui.text_colored(text, color)
                 end)
@@ -379,11 +382,11 @@ function UI.render_windows()
 
     if Config.settings.toggle_p1 then
 
-        UI.render_player_combo_window(0, "P1 Current Combo", center_x - UI.combo_window_fixed_width - 100, window_y, "toggle_p1", "toggle_minimal_view_p1")
+        UI.render_player_combo_window(0, "P1 Current Combo", center_x - UI.combo_window_fixed_width - 77, window_y, "toggle_p1", "toggle_minimal_view_p1")
     end
 
     if Config.settings.toggle_p2 then
-        UI.render_player_combo_window(1, "P2 Current Combo", (center_x + 100), window_y, "toggle_p2", "toggle_minimal_view_p2")
+        UI.render_player_combo_window(1, "P2 Current Combo", (center_x + 77), window_y, "toggle_p2", "toggle_minimal_view_p2")
     end
     
     imgui.pop_font()
