@@ -235,7 +235,7 @@ function GameData.get_char_dict(char_id)
     return json.load_file(MOVE_DICT_DIR .. move_dict_path) or {}
 end
 
-function GameData.get_sdk_pointers()
+function GameData.get_objects()
     local sPlayer = GameData.PlayerField:get_data()
     if not sPlayer then return nil, nil, nil end
     
@@ -366,7 +366,7 @@ function GameData.map_player_data(player_index, cPlayer, cTeam, frame_meter)
 end
 
 function GameData.process_battle_info()
-    local sPlayer, cPlayer, cTeam = GameData.get_sdk_pointers()
+    local sPlayer, cPlayer, cTeam = GameData.get_objects()
     if not sPlayer then return nil, nil, nil end
 
     local frame_meter = nil
@@ -1456,11 +1456,10 @@ re.on_draw_ui(function()
     UI.render_settings()
 end)
 
-re.on_frame(function()
-    
-    local sPlayer, _, _ = GameData.get_sdk_pointers()
+re.on_frame(function()   
+    local sPlayer, _, _ = GameData.get_objects()
     if not sPlayer then return end
-    
+
     if sPlayer.prev_no_push_bit ~= 0 then
         SceneTracker.check_scene_change()
         local p1, p2, match_data = GameData.process_battle_info()
