@@ -8,8 +8,8 @@ local function battle_objects()
     this.TrainingManager = sdk.get_managed_singleton("app.training.TrainingManager")
     this.TempManager = sdk.get_managed_singleton("app.TemporarilyDataManager")
 
-    this.sTeam = function() return this.TeamField:get_data() or {} end
-    this.sPlayer = function() return this.PlayerField:get_data() or {} end
+    -- this.sTeam = function() return this.TeamField:get_data() or {} end
+    -- this.sPlayer = function() return this.PlayerField:get_data() or {} end
 
     return this
 end
