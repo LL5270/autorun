@@ -14,11 +14,11 @@ local UI = {}
 -----------------------------------------------------------------------------
 -- Config
 -----------------------------------------------------------------------------
+
 Config.settings = {
     toggle_all = true,
     toggle_p1 = true,
     toggle_p2 = true,
-    toggle_minimal_view = true,
     toggle_minimal_view_p1 = true,
     toggle_minimal_view_p2 = true,  
 }
@@ -56,28 +56,27 @@ function Utils.bitand(a, b)
     return result
 end
 
-local function is_paused()
-	if not pause_manager then
-		pause_manager = sdk.get_managed_singleton("app.PauseManager")
-	end
-	
-	pause_type_bit = pause_manager:get_field("_CurrentPauseTypeBit")
-	if pause_type_bit == 64 or pause_type_bit == 2112 then
-		return false
-	end
-	return true
-end 
+function Utils.setup_hook(type_name, method_name, pre_func, post_func)
+    local type_def = sdk.find_type_definition(type_name)
+    if type_def then
+        local method = type_def:get_method(method_name)
+        if method then
+            sdk.hook(method, pre_func, post_func)
+        end
+    end
+end
 
 -------------------------
 -- GameObjects
 -------------------------
 
 GameObjects.TrainingManager = sdk.get_managed_singleton("app.training.TrainingManager")
+GameObjects.PauseManager = sdk.get_managed_singleton("app.PauseManager")
 GameObjects.gBattle = sdk.find_type_definition("gBattle")
 GameObjects.PlayerField = GameObjects.gBattle:get_field("Player")
 GameObjects.TeamField = GameObjects.gBattle:get_field("Team")
 
-function GameObjects.get_sdk_pointers()
+function GameObjects.get_objects()
     local sPlayer = GameObjects.PlayerField:get_data()
     if not sPlayer then return nil, nil, nil end
     local sTeam = GameObjects.TeamField:get_data()
@@ -99,9 +98,10 @@ function GameObjects.map_player_data(cPlayer, cTeam)
         data.super = team and team.mSuperGauge or 0
         data.combo_count = team and team.mComboCount or 0
         data.death_count = team and team.mDeathCount or 0
+        data.combo_damage = team and team.mComboDamage or 0
+        data.down_count = team and team.mDownCount or 0
         data.pos_x = player.pos and (player.pos.x.v / 65536.0) or 0
         data.gap = (player.vs_distance and player.vs_distance.v or 0) / 65536.0
-        
         data.advantage = 0
         if GameObjects.TrainingManager and GameObjects.TrainingManager._tCommon then
             local snap = GameObjects.TrainingManager._tCommon.SnapShotDatas
@@ -118,18 +118,24 @@ function GameObjects.map_player_data(cPlayer, cTeam)
     return data_vals[0], data_vals[1]
 end
 
+function GameObjects.is_paused()
+	local pause_type_bit = GameObjects.PauseManager:get_field("_CurrentPauseTypeBit")
+	if pause_type_bit == 64 or pause_type_bit == 2112 then
+		return false
+	end
+	return true
+end
+
 ------------------
 -- ComboData Logic
 ------------------
 
-ComboData.player_states = {
-    [0] = { started = false, finished = false, attacker = 0, start = {}, finish = {} },
-    [1] = { started = false, finished = false, attacker = 1, start = {}, finish = {} },
-}
-ComboData.p1_prev, ComboData.p2_prev = {}, {}
-
-function is_knockdown(state)
-    
+function ComboData.default_state()
+    ComboData.player_states = {
+        [0] = { started = false, finished = false, attacker = 0, start = {}, finish = {} },
+        [1] = { started = false, finished = false, attacker = 1, start = {}, finish = {} },
+    }
+    ComboData.p1_prev, ComboData.p2_prev = {}, {}
 end
 
 function ComboData.update_state(p1, p2)
@@ -163,13 +169,13 @@ UI.save_timer = 0
 UI.key_ready = false
 UI.right_click_this_frame = false
 UI.combo_window_fixed_width = 0
-
+UI.large_font = 29
+UI.medium_font = 20
+UI.small_font = 18
 UI.header_labels = {
     "Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
-UI.gradient_max = {
-    100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 490, 80}
-UI.col_widths = {
-    50, 60, 59, 59, 59, 59, 45, 45, 45, 60} -- First value is padding
+UI.gradient_max = {100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 490, 80} -- First value is padding
+UI.col_widths = {50, 62, 62, 62, 62, 62, 47, 47, 47, 62} -- First value is padding
 
 for _, w in ipairs(UI.col_widths) do
     UI.combo_window_fixed_width = UI.combo_window_fixed_width + w
@@ -200,10 +206,9 @@ function UI.get_font_size(size)
     return imgui.push_font(imgui.load_font(nil, size))
 end
 
-function UI.large_font() return UI.get_font_size(28) end
-function UI.medium_font() return UI.get_font_size(20) end
-function UI.small_font() return UI.get_font_size(16) end
-
+function UI.get_large_font() return UI.get_font_size(UI.large_font) end
+function UI.get_medium_font() return UI.get_font_size(UI.medium_font) end
+function UI.get_small_font() return UI.get_font_size(UI.small_font) end
 
 function UI.center_text(text, column_width, draw_fn)
     local text_size = imgui.calc_text_size(text)
@@ -232,9 +237,6 @@ function UI.value_to_hex_color(v, max_val)
     local b = 0
     return 0xFF000000 + (math.floor(b) << 16) + (math.floor(g) << 8) + math.floor(r)
 end
-
-
-
 
 function UI.process_columns(values, is_color)
     for i, v in ipairs(values) do
@@ -266,7 +268,6 @@ function UI.render_combo_window_table(state)
     local minimal_view =
         (is_p1 and Config.settings.toggle_minimal_view_p1)
         or (not is_p1 and Config.settings.toggle_minimal_view_p2)
-        or Config.settings.toggle_minimal_view
 
     if imgui.begin_table(
         "combo_table_p" .. tostring(state.attacker + 1),
@@ -278,7 +279,7 @@ function UI.render_combo_window_table(state)
             imgui.table_setup_column(label, 4096, UI.col_widths[i])
         end
 
-        UI.small_font()
+        UI.get_small_font()
         imgui.table_next_row()
         for i, label in ipairs(UI.header_labels) do
             imgui.table_set_column_index(i - 1)
@@ -291,7 +292,7 @@ function UI.render_combo_window_table(state)
         imgui.table_next_row()
 
         if not minimal_view then
-            UI.medium_font()
+            UI.get_medium_font()
             UI.process_columns({
                 is_p1 and state.start.p2.hp_current or state.start.p1.hp_current,
                 state.start.p1.drive_adjusted,
@@ -305,7 +306,7 @@ function UI.render_combo_window_table(state)
             imgui.pop_font()
 
             imgui.table_next_row()
-            UI.medium_font()
+            UI.get_medium_font()
             UI.process_columns({
                 is_p1 and state.finish.p2.hp_current or state.finish.p1.hp_current,
                 state.finish.p1.drive_adjusted,
@@ -324,13 +325,13 @@ function UI.render_combo_window_table(state)
         end
 
         imgui.table_next_row()
-        UI.large_font()
+        UI.get_large_font()
         local function adjust_finish(finish, start)
             if finish < 0 then finish = finish + 60000 end
             return finish - start
         end
         UI.process_columns({
-            is_p1 and (state.start.p2.hp_current - state.finish.p2.hp_current) or (state.start.p1.hp_current - state.finish.p1.hp_current),
+            is_p1 and state.finish.p1.combo_damage or state.finish.p2.combo_damage,
             adjust_finish(state.finish.p1.drive_adjusted, state.start.p1.drive_adjusted),
             state.finish.p1.super - state.start.p1.super,
             adjust_finish(state.finish.p2.drive_adjusted, state.start.p2.drive_adjusted),
@@ -373,20 +374,19 @@ end
 
 function UI.render_windows()
     UI.handle_hotkeys()
-    if not Config.settings.toggle_all or is_paused() then return end
+    if not Config.settings.toggle_all or GameObjects.is_paused() then return end
     UI.right_click_this_frame = UI.was_key_down(RIGHT_CLICK)
 
     local display = imgui.get_display_size()
     local center_x, window_y = display.x * 0.5, 0
-    UI.large_font()
+    UI.get_large_font()
 
     if Config.settings.toggle_p1 then
-
-        UI.render_player_combo_window(0, "P1 Current Combo", center_x - UI.combo_window_fixed_width - 77, window_y, "toggle_p1", "toggle_minimal_view_p1")
+        UI.render_player_combo_window(0, "P1 Current Combo", center_x - UI.combo_window_fixed_width - 73, window_y, "toggle_p1", "toggle_minimal_view_p1")
     end
 
     if Config.settings.toggle_p2 then
-        UI.render_player_combo_window(1, "P2 Current Combo", (center_x + 77), window_y, "toggle_p2", "toggle_minimal_view_p2")
+        UI.render_player_combo_window(1, "P2 Current Combo", (center_x + 73), window_y, "toggle_p2", "toggle_minimal_view_p2")
     end
     
     imgui.pop_font()
@@ -412,7 +412,8 @@ function UI.render_settings()
         if changed then UI.mark_for_save() end
         changed, Config.settings.toggle_p1 = imgui.checkbox("Show P1", Config.settings.toggle_p1)
         if changed then UI.mark_for_save() end
-        imgui.same_line(); changed, Config.settings.toggle_p2 = imgui.checkbox("Show P2", Config.settings.toggle_p2)
+        imgui.same_line()
+        changed, Config.settings.toggle_p2 = imgui.checkbox("Show P2", Config.settings.toggle_p2)
         if changed then UI.mark_for_save() end
         imgui.text("Minimal View")
         changed, Config.settings.toggle_minimal_view_p1 = imgui.checkbox("P1", Config.settings.toggle_minimal_view_p1)
@@ -428,18 +429,26 @@ end
 -- Main
 -------------------------
 
+Utils.setup_hook("app.training.TrainingManager", "BattleStart", nil, function()
+    ComboData.default_state()
+end)
+
+ComboData.default_state()
+
+Config.load()
+
 re.on_draw_ui(function()
     UI.render_settings()
 end)
 
 re.on_frame(function()
-    local sPlayer, cPlayer, cTeam = GameObjects.get_sdk_pointers()
-    if sPlayer and sPlayer.prev_no_push_bit ~= 0 then
+    local sPlayer, cPlayer, cTeam = GameObjects.get_objects()
+    if not sPlayer then return end
+
+    if sPlayer.prev_no_push_bit ~= 0 then
         local p1, p2 = GameObjects.map_player_data(cPlayer, cTeam)
         ComboData.update_state(p1, p2)
         UI.render_windows()
         UI.save_handler()
     end
 end)
-
-Config.load()
