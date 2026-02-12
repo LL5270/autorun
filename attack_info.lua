@@ -169,9 +169,9 @@ UI.save_timer = 0
 UI.key_ready = false
 UI.right_click_this_frame = false
 UI.combo_window_fixed_width = 0
-UI.large_font = 29
-UI.medium_font = 20
-UI.small_font = 18
+UI.large_font = 24
+UI.medium_font = 16
+UI.small_font = 14
 UI.header_labels = {
     "Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
 UI.gradient_max = {100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 490, 80} -- First value is padding
