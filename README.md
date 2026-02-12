@@ -11,8 +11,6 @@ Usage:
 
 ## Replay ID To Clipboard
 
-![Replay ID To Clipboard](images/replay_id_to_clipboard.png "Replay ID To Clipboard")
-
 Quickly copy the currently playing Replay ID with a click or hotkey. 
 
 Usage:
