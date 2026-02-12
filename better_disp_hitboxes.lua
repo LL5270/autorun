@@ -914,75 +914,88 @@ local function draw_hitboxes(work, actParam, player_config)
                     end
 
                 elseif rect:get_field("HitNo") ~= nil then
-                    if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
-                        if rect.Type == 2 or rect.Type == 1 then
-                            if player_config.toggle.hurtboxes_outline then
-                                draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-                                    apply_opacity(player_config.opacity.hurtbox_outline, 0xFF0080))
+                    -- TypeFlag > 0 indicates a hurtbox
+                    if rect.TypeFlag > 0 then
+                        if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
+                            if rect.Type == 2 or rect.Type == 1 then
+                                if player_config.toggle.hurtboxes_outline then
+                                    draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                        apply_opacity(player_config.opacity.hurtbox_outline, 0xFF0080))
+                                end
+                                if player_config.toggle.hurtboxes then
+                                    draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                        apply_opacity(player_config.opacity.hurtbox, 0xFF0080))
+                                end
+                            else
+                                if player_config.toggle.hurtboxes_outline then
+                                    draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                        apply_opacity(player_config.opacity.hurtbox_outline, 0x00FF00))
+                                end
+                                if player_config.toggle.hurtboxes then
+                                    draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                        apply_opacity(player_config.opacity.hurtbox, 0x00FF00))
+                                end
                             end
-                            if player_config.toggle.hurtboxes then
-                                draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-                                    apply_opacity(player_config.opacity.hurtbox, 0xFF0080))
-                            end
-                        else
-                            if player_config.toggle.hurtboxes_outline then
-                                draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-                                    apply_opacity(player_config.opacity.hurtbox_outline, 0x00FF00))
-                            end
-                            if player_config.toggle.hurtboxes then
-                                draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-                                    apply_opacity(player_config.opacity.hurtbox, 0x00FF00))
+
+                            if player_config.toggle.properties then
+                                local buffer_idx = 0
+
+                                if rect.TypeFlag == 1 then
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Projectile Invulnerable\n"
+                                elseif rect.TypeFlag == 2 then
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = "Strike Invulnerable\n"
+                                end
+
+                                local has_immune = false
+                                if bitand(rect.Immune, 1) == 1 or bitand(rect.Immune, 2) == 2 or 
+                                   bitand(rect.Immune, 4) == 4 or bitand(rect.Immune, 64) == 64 or 
+                                   bitand(rect.Immune, 128) == 128 then
+                                    has_immune = true
+                                    
+                                    if bitand(rect.Immune, 1) == 1 then 
+                                        buffer_idx = buffer_idx + 1
+                                        this.string_buffer[buffer_idx] = "Stand, " 
+                                    end
+                                    if bitand(rect.Immune, 2) == 2 then 
+                                        buffer_idx = buffer_idx + 1
+                                        this.string_buffer[buffer_idx] = "Crouch, " 
+                                    end
+                                    if bitand(rect.Immune, 4) == 4 then 
+                                        buffer_idx = buffer_idx + 1
+                                        this.string_buffer[buffer_idx] = "Air, " 
+                                    end
+                                    if bitand(rect.Immune, 64) == 64 then 
+                                        buffer_idx = buffer_idx + 1
+                                        this.string_buffer[buffer_idx] = "Behind, " 
+                                    end
+                                    if bitand(rect.Immune, 128) == 128 then 
+                                        buffer_idx = buffer_idx + 1
+                                        this.string_buffer[buffer_idx] = "Reverse, " 
+                                    end
+                                    
+                                    this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
+                                    buffer_idx = buffer_idx + 1
+                                    this.string_buffer[buffer_idx] = " Attack Intangible\n"
+                                end
+
+                                if buffer_idx > 0 then
+                                    local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
+                                    draw.text(fullString, finalPosX, (finalPosY + finalSclY),
+                                        apply_opacity(player_config.opacity.properties, 0xFFFFFF))
+                                end
                             end
                         end
-
-                        if player_config.toggle.properties then
-                            local buffer_idx = 0
-
-                            if rect.TypeFlag == 1 then
-                                buffer_idx = buffer_idx + 1
-                                this.string_buffer[buffer_idx] = "Projectile Invulnerable\n"
-                            elseif rect.TypeFlag == 2 then
-                                buffer_idx = buffer_idx + 1
-                                this.string_buffer[buffer_idx] = "Strike Invulnerable\n"
-                            end
-
-                            local has_immune = false
-                            if bitand(rect.Immune, 1) == 1 or bitand(rect.Immune, 2) == 2 or 
-                               bitand(rect.Immune, 4) == 4 or bitand(rect.Immune, 64) == 64 or 
-                               bitand(rect.Immune, 128) == 128 then
-                                has_immune = true
-                                
-                                if bitand(rect.Immune, 1) == 1 then 
-                                    buffer_idx = buffer_idx + 1
-                                    this.string_buffer[buffer_idx] = "Stand, " 
-                                end
-                                if bitand(rect.Immune, 2) == 2 then 
-                                    buffer_idx = buffer_idx + 1
-                                    this.string_buffer[buffer_idx] = "Crouch, " 
-                                end
-                                if bitand(rect.Immune, 4) == 4 then 
-                                    buffer_idx = buffer_idx + 1
-                                    this.string_buffer[buffer_idx] = "Air, " 
-                                end
-                                if bitand(rect.Immune, 64) == 64 then 
-                                    buffer_idx = buffer_idx + 1
-                                    this.string_buffer[buffer_idx] = "Behind, " 
-                                end
-                                if bitand(rect.Immune, 128) == 128 then 
-                                    buffer_idx = buffer_idx + 1
-                                    this.string_buffer[buffer_idx] = "Reverse, " 
-                                end
-                                
-                                this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
-                                buffer_idx = buffer_idx + 1
-                                this.string_buffer[buffer_idx] = " Attack Intangible\n"
-                            end
-
-                            if buffer_idx > 0 then
-                                local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
-                                draw.text(fullString, finalPosX, (finalPosY + finalSclY),
-                                    apply_opacity(player_config.opacity.properties, 0xFFFFFF))
-                            end
+                    -- otherwise is a throw hurt box
+                    elseif player_config.toggle.throwhurtboxes or player_config.toggle.throwhurtboxes_outline then
+                        if player_config.toggle.throwhurtboxes_outline then
+                            draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.throwhurtbox_outline, 0xFF0000))
+                        end
+                        if player_config.toggle.throwhurtboxes then
+                            draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+                                apply_opacity(player_config.opacity.throwhurtbox, 0xFF0000))
                         end
                     end
 
