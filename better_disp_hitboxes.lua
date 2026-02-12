@@ -72,13 +72,13 @@ this.prev_key_states = {}
 this.presets = {}
 this.preset_names = {}
 this.current_preset_name = ""
+this.previous_preset_name = ""
 this.initialized = false
 this.create_new_mode = false
 this.new_preset_name = ""
 this.rename_mode = false
 this.rename_temp_name = ""
 this.rename_select_all = false
-this.previous_preset_name = ""   -- Stores the preset name before entering creation mode
 this.alpha = nil
 this.world_pos = nil
 this.screenTL = nil
@@ -100,9 +100,7 @@ this.filled_rect = draw.filled_rect
 this.string_buffer = {}
 
 local function deep_copy(obj)
-	if type(obj) ~= 'table' then
-		return obj
-	end
+	if type(obj) ~= 'table' then return obj end
 	local copy = {}
 	for k, v in pairs(obj) do
 		copy[k] = deep_copy(v)
@@ -110,9 +108,7 @@ local function deep_copy(obj)
 	return copy
 end
 
-local function bitand(a, b)
-	return (a % (b + b) >= b) and b or 0 
-end
+local function bitand(a, b) return (a % (b + b) >= b) and b or 0 end
 
 local function create_default_config()
 	local default_toggle = {
@@ -179,15 +175,9 @@ local function mark_for_save()
 end
 
 local function validate_config(cfg)
-	if not cfg.options then
-		cfg.options = { display_menu = true }
-	end
-	if not cfg.p1 then
-		cfg.p1 = { toggle = {}, opacity = {} }
-	end
-	if not cfg.p2 then
-		cfg.p2 = { toggle = {}, opacity = {} }
-	end
+	if not cfg.options then cfg.options = { display_menu = true } end
+	if not cfg.p1 then cfg.p1 = { toggle = {}, opacity = {} } end
+	if not cfg.p2 then cfg.p2 = { toggle = {}, opacity = {} } end
 	
 	local default = create_default_config()
 	for _, player in ipairs({"p1", "p2"}) do
@@ -241,15 +231,10 @@ local function load_config()
 			end
 		end
 		
-		if loaded.current_preset then
-			this.current_preset_name = loaded.current_preset
-		end
+		if loaded.current_preset then this.current_preset_name = loaded.current_preset end
 		
-		if loaded.config then
-			this.config = validate_config(loaded.config)
-		else
-			this.config = validate_config(loaded)
-		end
+		if loaded.config then this.config = validate_config(loaded.config)
+		else this.config = validate_config(loaded) end
 	else
 		this.config = create_default_config()
 		this.presets = {}
@@ -296,9 +281,7 @@ local function load_preset(name)
 		local default = create_default_config()
 		local preset = this.presets[name]
 
-		-- Merge preset values with defaults to ensure all fields exist
 		for _, player in ipairs({"p1", "p2"}) do
-			-- Toggles: start with default, overwrite with saved preset values
 			local merged_toggle = deep_copy(default[player].toggle)
 			if preset[player].toggle then
 				for k, v in pairs(preset[player].toggle) do
@@ -307,7 +290,6 @@ local function load_preset(name)
 			end
 			this.config[player].toggle = merged_toggle
 
-			-- Opacities: start with default, overwrite with saved preset values
 			local merged_opacity = deep_copy(default[player].opacity)
 			if preset[player].opacity then
 				for k, v in pairs(preset[player].opacity) do
@@ -346,21 +328,10 @@ local function delete_preset(name)
 end
 
 local function rename_preset(old_name, new_name)
-	if not old_name or old_name == "" then
-		return false, "No preset selected"
-	end
-	
-	if not new_name or new_name == "" then
-		return false, "New name cannot be empty"
-	end
-	
-	if new_name == old_name then
-		return false, "New name is the same as the old name"
-	end
-	
-	if this.presets[new_name] then
-		return false, "A preset with this name already exists"
-	end
+	if not old_name or old_name == "" then return false, "No preset selected" end
+	if not new_name or new_name == "" then return false, "New name cannot be empty" end
+	if new_name == old_name then return false, "New name is the same as the old name" end
+	if this.presets[new_name] then return false, "A preset with this name already exists" end
 	
 	if this.presets[old_name] then
 		this.presets[new_name] = this.presets[old_name]
@@ -392,9 +363,7 @@ local function handle_create_new_mode_input()
 end
 
 local function update_current_preset_name(new_name)
-	if new_name == this.current_preset_name then
-		return
-	end
+	if new_name == this.current_preset_name then return end
 	
 	if new_name == "" then
 		this.current_preset_name = ""
@@ -405,10 +374,7 @@ local function update_current_preset_name(new_name)
 		this.create_new_mode = false
 		this.rename_mode = false
 	else
-		-- Enter creation mode with a name that doesn't exist yet
-		if this.previous_preset_name == "" then
-			this.previous_preset_name = this.current_preset_name
-		end
+		if this.previous_preset_name == "" then this.previous_preset_name = this.current_preset_name end
 		this.current_preset_name = new_name
 		this.create_new_mode = true
 		this.new_preset_name = new_name
@@ -420,9 +386,7 @@ local function handle_normal_mode_input()
 	local current_text = this.current_preset_name or ""
 	this.changed, current_text = imgui_input_text("##preset_name", current_text)
 	
-	if this.changed then
-		update_current_preset_name(current_text)
-	end
+	if this.changed then update_current_preset_name(current_text) end
 end
 
 local function save_rename()
@@ -488,9 +452,7 @@ local function cancel_new_preset()
 end
 
 local function create_new_blank_preset()
-	if this.previous_preset_name == "" then
-		this.previous_preset_name = this.current_preset_name
-	end
+	if this.previous_preset_name == "" then this.previous_preset_name = this.current_preset_name end
 	this.new_preset_name = get_dummy_preset_name()
 	this.current_preset_name = this.new_preset_name
 end
@@ -501,44 +463,25 @@ local function cancel_blank_preset()
 	if this.previous_preset_name ~= "" then
 		this.current_preset_name = this.previous_preset_name
 		this.previous_preset_name = ""
-	else
-		this.current_preset_name = ""
-	end
+	else this.current_preset_name = "" end
 end
 
 local function handle_create_new_mode_buttons()
 	if this.new_preset_name == "" then
-		if imgui_button("New##new_blank") then
-			create_new_blank_preset()
-		end
-		
+		if imgui_button("New##new_blank") then create_new_blank_preset() end
 		imgui_same_line()
-		
-		if imgui_button("Cancel##cancel_blank") then
-			cancel_blank_preset()
-		end
+		if imgui_button("Cancel##cancel_blank") then cancel_blank_preset() end
 	else
-		if imgui_button("Save New##save_new") then
-			save_new_preset()
-		end
-		
+		if imgui_button("Save New##save_new") then save_new_preset() end
 		imgui_same_line()
-		
-		if imgui_button("Cancel##cancel_new") then
-			cancel_new_preset()
-		end
+		if imgui_button("Cancel##cancel_new") then cancel_new_preset() end
 	end
 end
 
 local function is_preset_loaded(preset_name)
-	if not preset_name or preset_name == "" then
-		return false
-	end
-	
-	if not this.presets[preset_name] then
-		return false
-	end
-	
+	if not preset_name or preset_name == "" then return false end	
+	if not this.presets[preset_name] then return false end
+
 	local preset = this.presets[preset_name]
 	
 	for _, player in ipairs({"p1", "p2"}) do
@@ -579,9 +522,7 @@ local function is_preset_loaded(preset_name)
 end
 
 local function handle_loaded_preset_buttons()
-	if imgui_button("Save##save_preset") then
-		save_current_preset(this.current_preset_name)
-	end
+	if imgui_button("Save##save_preset") then save_current_preset(this.current_preset_name) end
 	
 	imgui_same_line()
 	if imgui_button("Rename##rename_current") then
@@ -599,9 +540,7 @@ local function handle_loaded_preset_buttons()
 end
 
 local function handle_unloaded_preset_buttons()
-	if imgui_button("Load##load_preset") then
-		load_preset(this.current_preset_name)
-	end
+	if imgui_button("Load##load_preset") then load_preset(this.current_preset_name) end
 end
 
 local function handle_empty_preset_buttons()
@@ -627,10 +566,7 @@ local function handle_fallback_buttons()
 end
 
 local function preset_has_unsaved_changes(preset_name)
-	if not preset_name or preset_name == "" or not this.presets[preset_name] then
-		return false
-	end
-	
+	if not preset_name or preset_name == "" or not this.presets[preset_name] then return false end
 	local preset = this.presets[preset_name]
 	
 	for _, player in ipairs({"p1", "p2"}) do
@@ -640,27 +576,19 @@ local function preset_has_unsaved_changes(preset_name)
 		local preset_opacity = preset[player].opacity
 		
 		for toggle_name, preset_value in pairs(preset_toggle) do
-			if current_toggle[toggle_name] ~= preset_value then
-				return true
-			end
+			if current_toggle[toggle_name] ~= preset_value then return true end
 		end
 		
 		for toggle_name, _ in pairs(current_toggle) do
-			if preset_toggle[toggle_name] == nil then
-				return true
-			end
+			if preset_toggle[toggle_name] == nil then return true end
 		end
 		
 		for opacity_name, preset_value in pairs(preset_opacity) do
-			if current_opacity[opacity_name] ~= preset_value then
-				return true
-			end
+			if current_opacity[opacity_name] ~= preset_value then return true end
 		end
 		
 		for opacity_name, _ in pairs(current_opacity) do
-			if preset_opacity[opacity_name] == nil then
-				return true
-			end
+			if preset_opacity[opacity_name] == nil then return true end
 		end
 	end
 	
@@ -732,13 +660,9 @@ local function handle_normal_mode_buttons()
 end
 
 local function preset_mode_handler()
-	if this.rename_mode then
-		handle_rename_mode_buttons()
-	elseif this.create_new_mode then
-		handle_create_new_mode_buttons()
-	else
-		handle_normal_mode_buttons()
-	end
+	if this.rename_mode then handle_rename_mode_buttons()
+	elseif this.create_new_mode then handle_create_new_mode_buttons()
+	else handle_normal_mode_buttons() end
 end
 
 local function copy_player(player)
@@ -799,9 +723,7 @@ end
 
 local function is_pause_menu_closed()
 	get_pause_type_bit()
-	if this.pause_type_bit == 64 or this.pause_type_bit == 2112 then
-		return true
-	end
+	if this.pause_type_bit == 64 or this.pause_type_bit == 2112 then return true end
 end
 
 local function get_prev_push_bit()
@@ -873,12 +795,10 @@ local function draw_hitboxes(work, actParam, player_config)
                         end
 
                         if player_config.toggle.properties then
-                            -- Use table for string building instead of concatenation
                             local buffer_idx = 0
                             local has_exceptions = false
                             local has_combo = false
 
-                            -- Build exceptions string
                             if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
                                bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
                                bitand(rect.CondFlag, 512) == 512 then
@@ -906,7 +826,6 @@ local function draw_hitboxes(work, actParam, player_config)
                                     this.string_buffer[buffer_idx] = "Backwards, " 
                                 end
                                 
-                                -- Remove trailing comma and space
                                 this.string_buffer[buffer_idx] = string_sub(this.string_buffer[buffer_idx], 1, -3)
                                 buffer_idx = buffer_idx + 1
                                 this.string_buffer[buffer_idx] = "\n"
@@ -1019,7 +938,6 @@ local function draw_hitboxes(work, actParam, player_config)
                     end
 
                 elseif rect:get_field("HitNo") ~= nil then
-                    -- TypeFlag > 0 indicates a hurtbox
                     if rect.TypeFlag > 0 then
                         if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
                             if rect.Type == 2 or rect.Type == 1 then
@@ -1092,7 +1010,8 @@ local function draw_hitboxes(work, actParam, player_config)
                                 end
                             end
                         end
-                    -- otherwise is a throw hurt box
+                    
+					-- Otherwise is a throw hurtbox
                     elseif player_config.toggle.throwhurtboxes or player_config.toggle.throwhurtboxes_outline then
                         if player_config.toggle.throwhurtboxes_outline then
                             draw_outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
@@ -1131,18 +1050,14 @@ end
 
 local function toggle_setter(label, val)
 	local changed, new_val = imgui_checkbox(label, val)
-	if changed then
-		mark_for_save()
-	end
+	if changed then mark_for_save() end
 	return changed, new_val
 end
 
 local function opacity_setter(label, val, speed, min, max)
 	val = math_max(0, math_min(100, val))
 	local changed, new_val = imgui_drag_int(label, val, speed or 1.0, min or 0, max or 100)
-	if changed then
-		mark_for_save()
-	end
+	if changed then mark_for_save() end
 	return changed, new_val
 end
 
@@ -1157,16 +1072,12 @@ end
 local function save_handler()
 	if this.save_pending then
 		this.save_timer = this.save_timer - (1.0 / 60.0)
-		if this.save_timer <= 0 then
-			save_config()
-		end
+		if this.save_timer <= 0 then save_config() end
 	end
 end
 
 local function build_hotkeys()
-	if not this.key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then
-		this.key_ready = true
-	end
+	if not this.key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then this.key_ready = true end
 
 	if this.key_ready and reframework:is_key_down(KEY_F1) then
 		this.config.options.display_menu = not this.config.options.display_menu
@@ -1223,9 +1134,7 @@ local function build_toggler_with_opacity(label, config_suffix, opacity_suffix)
 end
 
 local function build_presets_table()
-	if not imgui_begin_table("PresetTable", 3) then
-		return
-	end
+	if not imgui_begin_table("PresetTable", 3) then return end
 	
 	imgui_table_setup_column("", nil, 150)
 	imgui_table_setup_column("", nil, 60)
@@ -1264,21 +1173,15 @@ end
 
 local function build_presets()
 	-- imgui_set_next_item_open(true, 0 << 3)
-	if not imgui_tree_node("Presets") then
-		return
-	end
+	if not imgui_tree_node("Presets") then return end
 
 	imgui_text("Current:")
 	imgui_same_line()
 	imgui_push_item_width(100)
 	
-	if this.rename_mode then
-		handle_rename_mode_input()
-	elseif this.create_new_mode then
-		handle_create_new_mode_input()
-	else
-		handle_normal_mode_input()
-	end
+	if this.rename_mode then handle_rename_mode_input()
+	elseif this.create_new_mode then handle_create_new_mode_input()
+	else handle_normal_mode_input() end
 	
 	imgui_pop_item_width()
 	imgui_same_line()
@@ -1468,12 +1371,14 @@ end
 
 local function build_options()
     if imgui_tree_node("Options") then
+		
         if imgui_tree_node("Copy") then
             if imgui_button("P1 to P2##p1_to_p2") then copy_player(0) end
             imgui_same_line()
             if imgui_button("P2 to P1##p2_to_p1") then copy_player(1) end
             imgui_tree_pop()
         end
+
         if imgui_tree_node("Reset") then
             if imgui_begin_table("ResetTable", 4) then
                 imgui_table_setup_column("", 0, 100)
@@ -1519,81 +1424,76 @@ local function build_options()
     end
 end
 
+local function draw_position_marker(entity, player_config)
+    if not player_config.toggle.position then return end
+    if not entity.pos or not entity.pos.x or not entity.pos.y then return end
+
+    local x = entity.pos.x.v
+    local y = entity.pos.y.v
+
+    if not x or not y or (x == 0 and y == 0) then return end -- Prevent 0,0,0 midscreen glitch frame
+
+    this.vPos.x = x / 6553600.0
+    this.vPos.y = y / 6553600.0
+    this.vPos.z = 0
+
+    local screenPos = draw_world_to_screen(this.vPos)
+    if screenPos then
+        draw_filled_circle(
+            screenPos.x,
+            screenPos.y,
+            10,
+            apply_opacity(player_config.opacity.position, 0xFFFFFF),
+            10
+        )
+    end
+end
+
+local function process_entity(entity, actParam)
+    local config = nil
+
+    if entity:get_IsTeam1P() then config = this.config.p1
+    elseif entity:get_IsTeam2P() then config = this.config.p2
+    end
+
+    if not config or not config.toggle.toggle_show then return end
+
+    draw_hitboxes(entity, actParam, config)
+    draw_position_marker(entity, config)
+end
+
 local function build_hitboxes()
-	local sWork = gBattle:get_field("Work"):get_data(nil)
-	local cWork = sWork.Global_work
-	
-	for i, obj in pairs(cWork) do
-		local actParam = obj.mpActParam
-		if actParam and not obj:get_IsR0Die() then
-			if obj:get_IsTeam1P() and this.config.p2.toggle.toggle_show then
-				draw_hitboxes(obj, actParam, this.config.p2)
-				if this.config.p2.toggle.position then
-					this.vPos.x = obj.pos.x.v / 6553600.0
-					this.vPos.y = obj.pos.y.v / 6553600.0
-					this.vPos.z = 0
-					local objPos = draw_world_to_screen(this.vPos)
-					if objPos then
-						draw_filled_circle(objPos.x, objPos.y, 10, apply_opacity(this.config.p2.opacity.position, 0xFFFFFF), 10)
-					end
-				end
-			end
-			if obj:get_IsTeam2P() and this.config.p1.toggle.toggle_show then
-				draw_hitboxes(obj, actParam, this.config.p1)
-				if this.config.p1.toggle.position then
-					this.vPos.x = obj.pos.x.v / 6553600.0
-					this.vPos.y = obj.pos.y.v / 6553600.0
-					this.vPos.z = 0
-					local objPos = draw_world_to_screen(this.vPos)
-					if objPos then
-						draw_filled_circle(objPos.x, objPos.y, 10, apply_opacity(this.config.p1.opacity.position, 0xFFFFFF), 10)
-					end
-				end
-			end
-		end
-	end
-	
-	local sPlayer = gBattle:get_field("Player"):get_data(nil)
-	local cPlayer = sPlayer.mcPlayer
-	for _, player in pairs(cPlayer) do
-		local actParam = player.mpActParam
-		if actParam then
-			if player:get_IsTeam1P() and this.config.p2.toggle.toggle_show then
-				draw_hitboxes(player, actParam, this.config.p2)
-				if this.config.p2.toggle.position then
-					this.vPos.x = player.pos.x.v / 6553600.0
-					this.vPos.y = player.pos.y.v / 6553600.0
-					this.vPos.z = 0
-					local worldPos = draw_world_to_screen(this.vPos)
-					if worldPos then
-						draw_filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(this.config.p2.opacity.position, 0xFFFFFF), 10)
-					end
-				end
-			elseif player:get_IsTeam2P() and this.config.p1.toggle.toggle_show then
-				draw_hitboxes(player, actParam, this.config.p1)
-				if this.config.p1.toggle.position then
-					this.vPos.x = player.pos.x.v / 6553600.0
-					this.vPos.y = player.pos.y.v / 6553600.0
-					this.vPos.z = 0
-					local worldPos = draw_world_to_screen(this.vPos)
-					if worldPos then
-						draw_filled_circle(worldPos.x, worldPos.y, 10, apply_opacity(this.config.p1.opacity.position, 0xFFFFFF), 10)
-					end
-				end
-			end
-		end
-	end
+    local sWork = gBattle:get_field("Work"):get_data(nil)
+    local cWork = sWork.Global_work
+
+    for _, obj in pairs(cWork) do
+        local actParam = obj.mpActParam
+        if actParam and not obj:get_IsR0Die() then
+            process_entity(obj, actParam)
+        end
+    end
+
+    local sPlayer = gBattle:get_field("Player"):get_data(nil)
+    local cPlayer = sPlayer.mcPlayer
+
+    for _, player in pairs(cPlayer) do
+        local actParam = player.mpActParam
+        if actParam then
+            process_entity(player, actParam)
+        end
+    end
+end
+
+local function build_menu()
+	imgui_begin_window("Hitboxes", true, 64)
+	build_toggles()
+	build_presets()
+	build_options()
+	imgui_end_window()
 end
 
 local function build_gui()
-	if this.config.options.display_menu and get_prev_push_bit() ~= 0 then
-		imgui_begin_window("Hitboxes", true, 64)
-		build_toggles()
-		build_presets()
-		build_options()
-	    imgui_end_window()
-	end
-
+	if this.config.options.display_menu and get_prev_push_bit() ~= 0 then build_menu() end
 	if is_pause_menu_closed() then build_hitboxes()	end
 end
 
