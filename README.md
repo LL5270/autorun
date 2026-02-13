@@ -17,6 +17,8 @@ Usage:
 * **Ctrl+N/Click**: Copy ID
 * **Ctrl+M**: Toggle ID display
 
+**TODO**: Show ID during replays entered from Training Mode and post-match screen
+
 ## Attack Info
 
 Detailed info for current combo, including total damage, net Drive gain, Super gain, and corner carry for both players.
