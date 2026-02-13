@@ -126,6 +126,7 @@ function GameObjects.map_player_data(cPlayer, cTeam)
 end
 
 function GameObjects.is_paused()
+    if not GameObjects.PauseManager then return false end
 	local pause_type_bit = GameObjects.PauseManager:get_field("_CurrentPauseTypeBit")
 	return not (pause_type_bit == 64 or pause_type_bit == 2112)
 end
