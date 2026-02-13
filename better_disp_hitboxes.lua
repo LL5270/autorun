@@ -8,6 +8,7 @@ local KEY_2 = 0x32
 local gBattle, sPlayer, pause_manager
 local this = {}
 
+-- TODO Clean up this mess
 this.prev_key_states, this.presets, this.preset_names, this.string_buffer = {}, {}, {}, {}
 this.current_preset_name, this.previous_preset_name, this.new_preset_name, this.rename_temp_name = "", "", "", ""
 this.initialized, this.rename_mode, this.create_new_mode = false, false, false
@@ -665,7 +666,7 @@ local function build_hotkeys()
 	if not this.key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then this.key_ready = true end
 	if this.key_ready and reframework:is_key_down(KEY_F1) then
 		this.config.options.display_menu = not this.config.options.display_menu
-		this.key_ready = false end
+		this.key_ready = false; mark_for_save() end
 	if this.key_ready and reframework:is_key_down(KEY_CTRL) and reframework:is_key_down(KEY_1) then
 		this.config.p1.toggle.toggle_show = not this.config.p1.toggle.toggle_show
 		this.key_ready = false; mark_for_save() end
