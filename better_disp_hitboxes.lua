@@ -414,6 +414,7 @@ end
 local function get_screen_dimensions(vtl, vtr, vbl, vbr)
 	local dw = draw.world_to_screen
 	local tl, tr, bl, br = dw(vtl), dw(vtr), dw(vbl), dw(vbr)
+	if not (tl and tr and bl and br) then return nil, nil, nil, nil end
 	return (tl.x + tr.x) / 2, (bl.y + tl.y) / 2, (tr.x - tl.x), (tl.y - bl.y)
 end
 
@@ -429,190 +430,192 @@ local function draw_hitboxes(work, actParam, player_config)
             this.vBL.x, this.vBL.y, this.vBL.z = this.posX - this.sclX / 2, this.posY - this.sclY / 2, 0
             this.vBR.x, this.vBR.y, this.vBR.z = this.posX + this.sclX / 2, this.posY - this.sclY / 2, 0
 			local finalPosX, finalPosY, finalSclX, finalSclY = get_screen_dimensions(this.vTL, this.vTR, this.vBL, this.vBR)
-			if rect:get_field("HitPos") ~= nil then
-				if rect.TypeFlag > 0 then
-					if player_config.toggle.hitboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.hitbox_outline, 0x0040C0))
-					end
-					if player_config.toggle.hitboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.hitbox, 0x0040C0))
-					end
-					if player_config.toggle.properties then
-						local buffer_idx, has_exceptions, has_combo = 0, false, false
-						if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
-							bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
-							bitand(rect.CondFlag, 512) == 512 then
-							buffer_idx = buffer_idx + 1
-							this.string_buffer[buffer_idx] = "Can't Hit "
-							if bitand(rect.CondFlag, 16) == 16 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Standing, " 
-							end
-							if bitand(rect.CondFlag, 32) == 32 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Crouching, " 
-							end
-							if bitand(rect.CondFlag, 64) == 64 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Airborne, " 
-							end
-							if bitand(rect.CondFlag, 256) == 256 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Forward, " 
-							end
-							if bitand(rect.CondFlag, 512) == 512 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Backwards, " 
-							end
-							this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
-							buffer_idx = buffer_idx + 1
-							this.string_buffer[buffer_idx] = "\n"
-							has_exceptions = true
+			if (finalPosX and finalPosY and finalSclX and finalSclY) then
+				if rect:get_field("HitPos") ~= nil then
+					if rect.TypeFlag > 0 then
+						if player_config.toggle.hitboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.hitbox_outline, 0x0040C0))
 						end
-						if bitand(rect.CondFlag, 262144) == 262144 or bitand(rect.CondFlag, 524288) == 524288 then
-							buffer_idx = buffer_idx + 1
-							this.string_buffer[buffer_idx] = "Combo Only\n"
-							has_combo = true
-						end
-						if has_exceptions or has_combo then
-							local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY),
-								apply_opacity(player_config.opacity.properties, 0xFFFFFF))
-						end
-					end
-				elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) then
-					if player_config.toggle.throwboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.throwbox_outline, 0xD080FF))
-					end
-					if player_config.toggle.throwboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.throwbox, 0xD080FF))
-					end
-					if player_config.toggle.properties then
-						local buffer_idx, has_exceptions, has_combo = 0, false, false
-						if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
-							bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
-							bitand(rect.CondFlag, 512) == 512 then
-							buffer_idx = buffer_idx + 1
-							this.string_buffer[buffer_idx] = "Can't Hit "
-							if bitand(rect.CondFlag, 16) == 16 then
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Standing, " end
-							if bitand(rect.CondFlag, 32) == 32 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Crouching, " end
-							if bitand(rect.CondFlag, 64) == 64 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Airborne, " end
-							if bitand(rect.CondFlag, 256) == 256 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Forward, " end
-							if bitand(rect.CondFlag, 512) == 512 then 
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Backwards, " end
-							this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
-							buffer_idx = buffer_idx + 1
-							this.string_buffer[buffer_idx] = "\n"
-							has_exceptions = true
-						end
-						if bitand(rect.CondFlag, 262144) == 262144 or bitand(rect.CondFlag, 524288) == 524288 then
-							buffer_idx = buffer_idx + 1
-							this.string_buffer[buffer_idx] = "Combo Only\n"
-							has_combo = true
-						end
-						if has_exceptions or has_combo then
-							local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
-							draw.text(fullString, finalPosX, (finalPosY + finalSclY),
-								apply_opacity(player_config.opacity.properties, 0xFFFFFF)) end
-					end
-				elseif rect.GuardBit == 0 then
-					if player_config.toggle.clashboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.clashbox_outline, 0x3891E6)) end
-					if player_config.toggle.clashboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.clashbox, 0x3891E6)) end
-				else
-					if player_config.toggle.proximityboxes_outline then
-						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.proximitybox_outline, 0x5b5b5b)) end
-					if player_config.toggle.proximityboxes then
-						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.proximitybox, 0x5b5b5b)) end
-				end
-			elseif rect:get_field("Attr") ~= nil then
-				if player_config.toggle.pushboxes_outline then
-					draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-						apply_opacity(player_config.opacity.pushbox_outline, 0x00FFFF)) end
-				if player_config.toggle.pushboxes then
-					draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-						apply_opacity(player_config.opacity.pushbox, 0x00FFFF)) end
-			elseif rect:get_field("HitNo") ~= nil then
-				if rect.TypeFlag > 0 then
-					if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
-						if rect.Type == 2 or rect.Type == 1 then
-							if player_config.toggle.hurtboxes_outline then
-								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-									apply_opacity(player_config.opacity.hurtbox_outline, 0xFF0080)) end
-							if player_config.toggle.hurtboxes then
-								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-									apply_opacity(player_config.opacity.hurtbox, 0xFF0080)) end
-						else
-							if player_config.toggle.hurtboxes_outline then
-								draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-									apply_opacity(player_config.opacity.hurtbox_outline, 0x00FF00)) end
-							if player_config.toggle.hurtboxes then
-								draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-									apply_opacity(player_config.opacity.hurtbox, 0x00FF00)) end
+						if player_config.toggle.hitboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.hitbox, 0x0040C0))
 						end
 						if player_config.toggle.properties then
-							local buffer_idx = 0
-							if rect.TypeFlag == 1 then
+							local buffer_idx, has_exceptions, has_combo = 0, false, false
+							if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
+								bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
+								bitand(rect.CondFlag, 512) == 512 then
 								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Projectile Invulnerable\n"
-							elseif rect.TypeFlag == 2 then
-								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = "Strike Invulnerable\n" end
-							local has_immune = false
-							if bitand(rect.Immune, 1) == 1 or bitand(rect.Immune, 2) == 2 or 
-								bitand(rect.Immune, 4) == 4 or bitand(rect.Immune, 64) == 64 or 
-								bitand(rect.Immune, 128) == 128 then
-								has_immune = true
-								if bitand(rect.Immune, 1) == 1 then 
+								this.string_buffer[buffer_idx] = "Can't Hit "
+								if bitand(rect.CondFlag, 16) == 16 then 
 									buffer_idx = buffer_idx + 1
-									this.string_buffer[buffer_idx] = "Stand, " end
-								if bitand(rect.Immune, 2) == 2 then 
+									this.string_buffer[buffer_idx] = "Standing, " 
+								end
+								if bitand(rect.CondFlag, 32) == 32 then 
 									buffer_idx = buffer_idx + 1
-									this.string_buffer[buffer_idx] = "Crouch, " end
-								if bitand(rect.Immune, 4) == 4 then 
+									this.string_buffer[buffer_idx] = "Crouching, " 
+								end
+								if bitand(rect.CondFlag, 64) == 64 then 
 									buffer_idx = buffer_idx + 1
-									this.string_buffer[buffer_idx] = "Air, " end
-								if bitand(rect.Immune, 64) == 64 then 
+									this.string_buffer[buffer_idx] = "Airborne, " 
+								end
+								if bitand(rect.CondFlag, 256) == 256 then 
 									buffer_idx = buffer_idx + 1
-									this.string_buffer[buffer_idx] = "Behind, " end
-								if bitand(rect.Immune, 128) == 128 then 
+									this.string_buffer[buffer_idx] = "Forward, " 
+								end
+								if bitand(rect.CondFlag, 512) == 512 then 
 									buffer_idx = buffer_idx + 1
-									this.string_buffer[buffer_idx] = "Reverse, " end
+									this.string_buffer[buffer_idx] = "Backwards, " 
+								end
 								this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
 								buffer_idx = buffer_idx + 1
-								this.string_buffer[buffer_idx] = " Attack Intangible\n"
+								this.string_buffer[buffer_idx] = "\n"
+								has_exceptions = true
 							end
-							if buffer_idx > 0 then
+							if bitand(rect.CondFlag, 262144) == 262144 or bitand(rect.CondFlag, 524288) == 524288 then
+								buffer_idx = buffer_idx + 1
+								this.string_buffer[buffer_idx] = "Combo Only\n"
+								has_combo = true
+							end
+							if has_exceptions or has_combo then
+								local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
+								draw.text(fullString, finalPosX, (finalPosY + finalSclY),
+									apply_opacity(player_config.opacity.properties, 0xFFFFFF))
+							end
+						end
+					elseif ((rect.TypeFlag == 0 and rect.PoseBit > 0) or rect.CondFlag == 0x2C0) then
+						if player_config.toggle.throwboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.throwbox_outline, 0xD080FF))
+						end
+						if player_config.toggle.throwboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.throwbox, 0xD080FF))
+						end
+						if player_config.toggle.properties then
+							local buffer_idx, has_exceptions, has_combo = 0, false, false
+							if bitand(rect.CondFlag, 16) == 16 or bitand(rect.CondFlag, 32) == 32 or 
+								bitand(rect.CondFlag, 64) == 64 or bitand(rect.CondFlag, 256) == 256 or 
+								bitand(rect.CondFlag, 512) == 512 then
+								buffer_idx = buffer_idx + 1
+								this.string_buffer[buffer_idx] = "Can't Hit "
+								if bitand(rect.CondFlag, 16) == 16 then
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Standing, " end
+								if bitand(rect.CondFlag, 32) == 32 then 
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Crouching, " end
+								if bitand(rect.CondFlag, 64) == 64 then 
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Airborne, " end
+								if bitand(rect.CondFlag, 256) == 256 then 
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Forward, " end
+								if bitand(rect.CondFlag, 512) == 512 then 
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Backwards, " end
+								this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
+								buffer_idx = buffer_idx + 1
+								this.string_buffer[buffer_idx] = "\n"
+								has_exceptions = true
+							end
+							if bitand(rect.CondFlag, 262144) == 262144 or bitand(rect.CondFlag, 524288) == 524288 then
+								buffer_idx = buffer_idx + 1
+								this.string_buffer[buffer_idx] = "Combo Only\n"
+								has_combo = true
+							end
+							if has_exceptions or has_combo then
 								local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
 								draw.text(fullString, finalPosX, (finalPosY + finalSclY),
 									apply_opacity(player_config.opacity.properties, 0xFFFFFF)) end
 						end
+					elseif rect.GuardBit == 0 then
+						if player_config.toggle.clashboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.clashbox_outline, 0x3891E6)) end
+						if player_config.toggle.clashboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.clashbox, 0x3891E6)) end
+					else
+						if player_config.toggle.proximityboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.proximitybox_outline, 0x5b5b5b)) end
+						if player_config.toggle.proximityboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.proximitybox, 0x5b5b5b)) end
 					end
-				elseif player_config.toggle.throwhurtboxes or player_config.toggle.throwhurtboxes_outline then
-					if player_config.toggle.throwhurtboxes_outline then
+				elseif rect:get_field("Attr") ~= nil then
+					if player_config.toggle.pushboxes_outline then
 						draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.throwhurtbox_outline, 0xFF0000)) end
-					if player_config.toggle.throwhurtboxes then
+							apply_opacity(player_config.opacity.pushbox_outline, 0x00FFFF)) end
+					if player_config.toggle.pushboxes then
 						draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
-							apply_opacity(player_config.opacity.throwhurtbox, 0xFF0000)) end
+							apply_opacity(player_config.opacity.pushbox, 0x00FFFF)) end
+				elseif rect:get_field("HitNo") ~= nil then
+					if rect.TypeFlag > 0 then
+						if player_config.toggle.hurtboxes or player_config.toggle.hurtboxes_outline then
+							if rect.Type == 2 or rect.Type == 1 then
+								if player_config.toggle.hurtboxes_outline then
+									draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+										apply_opacity(player_config.opacity.hurtbox_outline, 0xFF0080)) end
+								if player_config.toggle.hurtboxes then
+									draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+										apply_opacity(player_config.opacity.hurtbox, 0xFF0080)) end
+							else
+								if player_config.toggle.hurtboxes_outline then
+									draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+										apply_opacity(player_config.opacity.hurtbox_outline, 0x00FF00)) end
+								if player_config.toggle.hurtboxes then
+									draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+										apply_opacity(player_config.opacity.hurtbox, 0x00FF00)) end
+							end
+							if player_config.toggle.properties then
+								local buffer_idx = 0
+								if rect.TypeFlag == 1 then
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Projectile Invulnerable\n"
+								elseif rect.TypeFlag == 2 then
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = "Strike Invulnerable\n" end
+								local has_immune = false
+								if bitand(rect.Immune, 1) == 1 or bitand(rect.Immune, 2) == 2 or 
+									bitand(rect.Immune, 4) == 4 or bitand(rect.Immune, 64) == 64 or 
+									bitand(rect.Immune, 128) == 128 then
+									has_immune = true
+									if bitand(rect.Immune, 1) == 1 then 
+										buffer_idx = buffer_idx + 1
+										this.string_buffer[buffer_idx] = "Stand, " end
+									if bitand(rect.Immune, 2) == 2 then 
+										buffer_idx = buffer_idx + 1
+										this.string_buffer[buffer_idx] = "Crouch, " end
+									if bitand(rect.Immune, 4) == 4 then 
+										buffer_idx = buffer_idx + 1
+										this.string_buffer[buffer_idx] = "Air, " end
+									if bitand(rect.Immune, 64) == 64 then 
+										buffer_idx = buffer_idx + 1
+										this.string_buffer[buffer_idx] = "Behind, " end
+									if bitand(rect.Immune, 128) == 128 then 
+										buffer_idx = buffer_idx + 1
+										this.string_buffer[buffer_idx] = "Reverse, " end
+									this.string_buffer[buffer_idx] = string.sub(this.string_buffer[buffer_idx], 1, -3)
+									buffer_idx = buffer_idx + 1
+									this.string_buffer[buffer_idx] = " Attack Intangible\n"
+								end
+								if buffer_idx > 0 then
+									local fullString = table.concat(this.string_buffer, "", 1, buffer_idx)
+									draw.text(fullString, finalPosX, (finalPosY + finalSclY),
+										apply_opacity(player_config.opacity.properties, 0xFFFFFF)) end
+							end
+						end
+					elseif player_config.toggle.throwhurtboxes or player_config.toggle.throwhurtboxes_outline then
+						if player_config.toggle.throwhurtboxes_outline then
+							draw.outline_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.throwhurtbox_outline, 0xFF0000)) end
+						if player_config.toggle.throwhurtboxes then
+							draw.filled_rect(finalPosX, finalPosY, finalSclX, finalSclY,
+								apply_opacity(player_config.opacity.throwhurtbox, 0xFF0000)) end
+						end
 				end
 			elseif rect:get_field("KeyData") ~= nil then
 				if player_config.toggle.uniqueboxes_outline then
