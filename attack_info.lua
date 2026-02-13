@@ -21,8 +21,8 @@ Config.settings = {
     toggle_p2 = true,
     toggle_minimal_view_p1 = true,
     toggle_minimal_view_p2 = true,
-    -- toggle_show_empty_p1 = false,
-    -- toggle_show_empty_p2 = false,
+    toggle_show_empty_p1 = false,
+    toggle_show_empty_p2 = false,
 }
 
 function Config.load()
@@ -267,14 +267,9 @@ end
 
 function UI.render_combo_window_table(state)
     local is_p1 = state.attacker == 0
-
     local minimal_view =
         (is_p1 and Config.settings.toggle_minimal_view_p1)
         or (not is_p1 and Config.settings.toggle_minimal_view_p2)
-
-    -- local show_empty =
-        -- (is_p1 and Config.settings.toggle_show_empty_p1)
-        -- or (not is_p1 and Config.settings.toggle_show_empty_p2)
 
     if imgui.begin_table(
         "combo_table_p" .. tostring(state.attacker + 1),
@@ -338,7 +333,7 @@ function UI.render_combo_window_table(state)
             return finish - start
         end
         UI.process_columns({
-            is_p1 and (state.finish.p1.combo_damage or state.finish.p2.combo_damage),
+            is_p1 and state.finish.p1.combo_damage or state.finish.p2.combo_damage,
             adjust_finish(state.finish.p1.drive_adjusted, state.start.p1.drive_adjusted),
             state.finish.p1.super - state.start.p1.super,
             adjust_finish(state.finish.p2.drive_adjusted, state.start.p2.drive_adjusted),
@@ -417,7 +412,7 @@ function UI.render_settings()
         local changed = false
         imgui.text("Enable (F2)")
         imgui.same_line()
-        changed, Config.settings.toggle_all = imgui.checkbox("##toggle_all", Config.settings.toggle_all)
+        changed, Config.settings.toggle_all = imgui.checkbox("##enable", Config.settings.toggle_all)
         if changed then UI.mark_for_save() end
         if Config.settings.toggle_all then
             imgui.text("Show/Hide")
@@ -429,10 +424,10 @@ function UI.render_settings()
             if changed then UI.mark_for_save() end
             imgui.text("Minimal View")
             imgui.same_line()
-            changed, Config.settings.toggle_minimal_view_p1 = imgui.checkbox("P1##minimal_view_p1", Config.settings.toggle_minimal_view_p1)
+            changed, Config.settings.toggle_minimal_view_p1 = imgui.checkbox("P1##minimal_p1", Config.settings.toggle_minimal_view_p1)
             if changed then UI.mark_for_save() end
             imgui.same_line()
-            changed, Config.settings.toggle_minimal_view_p2 = imgui.checkbox("P2##minimal_view_p2", Config.settings.toggle_minimal_view_p2)
+            changed, Config.settings.toggle_minimal_view_p2 = imgui.checkbox("P2##minimal_p2", Config.settings.toggle_minimal_view_p2)
             if changed then UI.mark_for_save() end
             -- imgui.text("Show Empty")
             -- imgui.same_line()
@@ -441,6 +436,8 @@ function UI.render_settings()
             -- imgui.same_line()
             -- changed, Config.settings.toggle_show_empty_p2 = imgui.checkbox("P2##show_empty_p2", Config.settings.toggle_show_empty_p2)
             -- if changed then UI.mark_for_save() end
+            changed = imgui.button("Clear Info")
+            if changed then ComboData.default_state() end
         end
         imgui.tree_pop()
     end
