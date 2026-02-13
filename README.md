@@ -47,4 +47,4 @@ Usage:
 * Launch game
 
 ## Thanks
-Thanks to [WistfulHopes](https://github.com/WistfulHopes/SF6Mods) and [Rabbiratelier](https://github.com/Rabbiratelier/SF6Mods) for code examples. Thanks to Torino, Yimbo and BV crew.
+Thanks to [WistfulHopes](https://github.com/WistfulHopes/SF6Mods) and [Rabbiratelier](https://github.com/Rabbiratelier/SF6Mods) for code examples. Thanks to Torino, Yimbo, Gako and BV crew.
