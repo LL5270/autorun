@@ -17,6 +17,8 @@ Usage:
 * **Ctrl+N/Click**: Copy ID
 * **Ctrl+M**: Toggle ID display
 
+**TODO**: Show ID during replays entered from Training Mode and post-match screen
+
 ## Attack Info
 
 Detailed info for current combo, including total damage, net Drive gain, Super gain, and corner carry for both players.
@@ -47,4 +49,4 @@ Usage:
 * Launch game
 
 ## Thanks
-Thanks to [WistfulHopes](https://github.com/WistfulHopes/SF6Mods) and [Rabbiratelier](https://github.com/Rabbiratelier/SF6Mods) for code examples. Thanks to Torino, Yimbo and BV crew.
+Thanks to [WistfulHopes](https://github.com/WistfulHopes/SF6Mods) and [Rabbiratelier](https://github.com/Rabbiratelier/SF6Mods) for code examples. Thanks to Torino, Yimbo, Gako and BV crew.
