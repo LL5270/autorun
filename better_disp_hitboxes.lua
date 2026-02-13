@@ -867,7 +867,7 @@ local function build_options()
         if imgui.tree_node("Reset") then
 			if imgui.begin_table("ResetTable", 4) then
 				imgui_table_setup_columns({100, 35, 35, 35})
-				build_reset_row("Toggler", reset_toggle_default)
+				build_reset_row("Toggles", reset_toggle_default)
 				build_reset_row("Opacity", reset_opacity_default)
 				build_reset_row("All", reset_all_default)
 			imgui.end_table(); end
