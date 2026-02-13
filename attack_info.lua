@@ -11,16 +11,18 @@ local GameObjects = {}
 local ComboData = {}
 local UI = {}
 
------------------------------------------------------------------------------
+-------------------------
 -- Config
------------------------------------------------------------------------------
+-------------------------
 
 Config.settings = {
     toggle_all = true,
     toggle_p1 = true,
     toggle_p2 = true,
     toggle_minimal_view_p1 = true,
-    toggle_minimal_view_p2 = true,  
+    toggle_minimal_view_p2 = true,
+    -- toggle_show_empty_p1 = false,
+    -- toggle_show_empty_p2 = false,
 }
 
 function Config.load()
@@ -126,9 +128,9 @@ function GameObjects.is_paused()
 	return true
 end
 
-------------------
+-------------------------
 -- ComboData Logic
-------------------
+-------------------------
 
 function ComboData.default_state()
     ComboData.player_states = {
@@ -169,13 +171,13 @@ UI.save_timer = 0
 UI.key_ready = false
 UI.right_click_this_frame = false
 UI.combo_window_fixed_width = 0
-UI.large_font = 24
-UI.medium_font = 16
-UI.small_font = 14
+UI.large_font = 28
+UI.medium_font = 20
+UI.small_font = 13
 UI.header_labels = {
     "Damage","P1 Drive","P1 Super","P2 Drive","P2 Super", "P1 Carry","P2 Carry","Gap", "Adv"}
 UI.gradient_max = {100, 10000, 60000, 30000, 60000, 30000, 1530, 1530, 490, 80} -- First value is padding
-UI.col_widths = {50, 62, 62, 62, 62, 62, 47, 47, 47, 62} -- First value is padding
+UI.col_widths = {55, 62, 62, 62, 62, 62, 47, 47, 47, 62} -- First value is padding
 
 for _, w in ipairs(UI.col_widths) do
     UI.combo_window_fixed_width = UI.combo_window_fixed_width + w
@@ -265,9 +267,14 @@ end
 
 function UI.render_combo_window_table(state)
     local is_p1 = state.attacker == 0
+
     local minimal_view =
         (is_p1 and Config.settings.toggle_minimal_view_p1)
         or (not is_p1 and Config.settings.toggle_minimal_view_p2)
+
+    -- local show_empty =
+        -- (is_p1 and Config.settings.toggle_show_empty_p1)
+        -- or (not is_p1 and Config.settings.toggle_show_empty_p2)
 
     if imgui.begin_table(
         "combo_table_p" .. tostring(state.attacker + 1),
@@ -331,7 +338,7 @@ function UI.render_combo_window_table(state)
             return finish - start
         end
         UI.process_columns({
-            is_p1 and state.finish.p1.combo_damage or state.finish.p2.combo_damage,
+            is_p1 and (state.finish.p1.combo_damage or state.finish.p2.combo_damage),
             adjust_finish(state.finish.p1.drive_adjusted, state.start.p1.drive_adjusted),
             state.finish.p1.super - state.start.p1.super,
             adjust_finish(state.finish.p2.drive_adjusted, state.start.p2.drive_adjusted),
@@ -408,19 +415,33 @@ end
 function UI.render_settings()
     if imgui.tree_node("Attack Info") then
         local changed = false
-        changed, Config.settings.toggle_all = imgui.checkbox("Toggle All (F2)", Config.settings.toggle_all)
-        if changed then UI.mark_for_save() end
-        changed, Config.settings.toggle_p1 = imgui.checkbox("Show P1", Config.settings.toggle_p1)
-        if changed then UI.mark_for_save() end
+        imgui.text("Enable (F2)")
         imgui.same_line()
-        changed, Config.settings.toggle_p2 = imgui.checkbox("Show P2", Config.settings.toggle_p2)
+        changed, Config.settings.toggle_all = imgui.checkbox("##toggle_all", Config.settings.toggle_all)
         if changed then UI.mark_for_save() end
-        imgui.text("Minimal View")
-        changed, Config.settings.toggle_minimal_view_p1 = imgui.checkbox("P1", Config.settings.toggle_minimal_view_p1)
-        if changed then UI.mark_for_save() end
-        imgui.same_line()
-        changed, Config.settings.toggle_minimal_view_p2 = imgui.checkbox("P2", Config.settings.toggle_minimal_view_p2)
-        if changed then UI.mark_for_save() end
+        if Config.settings.toggle_all then
+            imgui.text("Show/Hide")
+            imgui.same_line()
+            changed, Config.settings.toggle_p1 = imgui.checkbox("P1##show_p1", Config.settings.toggle_p1)
+            if changed then UI.mark_for_save() end
+            imgui.same_line()
+            changed, Config.settings.toggle_p2 = imgui.checkbox("P2##show_p2", Config.settings.toggle_p2)
+            if changed then UI.mark_for_save() end
+            imgui.text("Minimal View")
+            imgui.same_line()
+            changed, Config.settings.toggle_minimal_view_p1 = imgui.checkbox("P1##minimal_view_p1", Config.settings.toggle_minimal_view_p1)
+            if changed then UI.mark_for_save() end
+            imgui.same_line()
+            changed, Config.settings.toggle_minimal_view_p2 = imgui.checkbox("P2##minimal_view_p2", Config.settings.toggle_minimal_view_p2)
+            if changed then UI.mark_for_save() end
+            -- imgui.text("Show Empty")
+            -- imgui.same_line()
+            -- changed, Config.settings.toggle_show_empty_p1 = imgui.checkbox("P1##show_empty_p1", Config.settings.toggle_show_empty_p1)
+            -- if changed then UI.mark_for_save() end
+            -- imgui.same_line()
+            -- changed, Config.settings.toggle_show_empty_p2 = imgui.checkbox("P2##show_empty_p2", Config.settings.toggle_show_empty_p2)
+            -- if changed then UI.mark_for_save() end
+        end
         imgui.tree_pop()
     end
 end
