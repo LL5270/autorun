@@ -1,6 +1,6 @@
 # Street Fighter 6 Mods
 
-## Better Hitbox Viewer
+## Better Hitbox Display
 
 More customizable version of WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods). Adds memory improvements, preset and hotkey support, and individual toggles/opacity sliders for each element.
 
