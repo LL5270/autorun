@@ -2,12 +2,12 @@
 
 ## Better Hitbox Viewer
 
-More customizable version of WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods). Adds memory improvements, preset support, and individual toggles/opacity sliders for each element.
+More customizable version of WistfulHopes' original [hitbox display script](https://github.com/WistfulHopes/SF6Mods). Adds memory improvements, preset and hotkey support, and individual toggles/opacity sliders for each element.
 
 Usage:
-* **F1**: Hide/show options menu
-* **Ctrl+1**: Hide/show P1 hitboxes
-* **Ctrl+2**: Hide/show P2 hitboxes
+* **F1**: Toggle options menu
+* **Ctrl+1**: Toggle P1 hitboxes
+* **Ctrl+2**: Toggle P2 hitboxes
 
 ## Replay ID To Clipboard
 
@@ -15,14 +15,24 @@ Quickly copy the currently playing Replay ID with a click or hotkey.
 
 Usage:
 * **Ctrl+N/Click**: Copy ID
-* **Ctrl+M**: Hide/show ID display
+* **Ctrl+M**: Toggle ID display
+
+## Attack Info
+
+Detailed info for current combo, including net Drive gain, Super gain, and corner carry for both players.
+
+Usage:
+* **F2**: Toggle display
+* **Right Click**: Toggle minimal/detailed view
+
+**TODO**: Fix advantage calculation on knockdowns
 
 ## Attack History
 
 Creates a log of recent combos. Sort by any element. Popup display for more detailed info. Work in progress.
 
 Usage:
-* **F3:** Hide/show menu
+* **F3:** Toggle menu
 
 ## Better Info Display
 
