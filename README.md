@@ -19,7 +19,7 @@ Usage:
 
 ## Attack Info
 
-Detailed info for current combo, including net Drive gain, Super gain, and corner carry for both players.
+Detailed info for current combo, including total damage, net Drive gain, Super gain, and corner carry for both players.
 
 Usage:
 * **F2**: Toggle display
