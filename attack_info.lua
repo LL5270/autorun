@@ -24,6 +24,7 @@ Config.settings = {
     toggle_minimal_view_p2 = true,
     toggle_show_empty_p1 = false,
     toggle_show_empty_p2 = false,
+    combo_timer_duration = 10,
 }
 
 function Config.load()
@@ -135,8 +136,8 @@ end
 
 function ComboData.default_state()
     ComboData.player_states = {
-        [0] = { started = false, finished = false, attacker = 0, start = {}, finish = {} },
-        [1] = { started = false, finished = false, attacker = 1, start = {}, finish = {} },
+        [0] = { started = false, finished = false, attacker = 0, start = {}, finish = {}, timer_remaining = nil },
+        [1] = { started = false, finished = false, attacker = 1, start = {}, finish = {}, timer_remaining = nil },
     }
     ComboData.p1_prev, ComboData.p2_prev = {}, {}
 end
@@ -156,6 +157,9 @@ function ComboData.update_state(p1, p2)
             state.finish = { p1 = Utils.deep_copy(p1), p2 = Utils.deep_copy(p2) }
             if atk.combo_count == 0 or def.death_count ~= def_prev.death_count then
                 state.finished, state.started = true, false
+                if Config.settings.combo_timer_duration > 0 then
+                    state.timer_remaining = Config.settings.combo_timer_duration
+                end
             end
         end
     end
@@ -351,6 +355,12 @@ end
 function UI.render_player_combo_window(player_index, title, x, y, toggle_setting, minimal_setting)
     local state = ComboData.player_states[player_index]
     if not (state.started or state.finished) then return end
+    
+    if UI.should_hide_combo_window(state) then
+        state.finished = false
+        state.timer_remaining = nil
+        return
+    end
 
     imgui.set_next_window_pos(Vector2f.new(x, y), 1 << 3)
     imgui.set_next_window_size(Vector2f.new(UI.combo_window_fixed_width, 0), 0, 1 << 1)
@@ -406,6 +416,32 @@ function UI.is_toggle_view_clicked()
     return UI.right_click_this_frame
 end
 
+function UI.update_combo_timers()
+    for i = 0, 1 do
+        local state = ComboData.player_states[i]
+        if state.timer_remaining and state.timer_remaining > 0 then
+            state.timer_remaining = state.timer_remaining - (1.0 / 60.0)
+        end
+    end
+end
+
+function UI.should_hide_combo_window(state)
+    if Config.settings.combo_timer_duration <= 0 then return false end
+    if not state.timer_remaining then return false end
+    return state.timer_remaining <= 0
+end
+
+function UI.get_combo_window_alpha(state)
+    if Config.settings.combo_timer_duration <= 0 or not state.timer_remaining then return 1.0 end
+    local dim_start = math.max(0, Config.settings.combo_timer_duration - 2)
+    local elapsed = Config.settings.combo_timer_duration - state.timer_remaining
+    if elapsed < dim_start then
+        return 1.0
+    else
+        return math.max(0, state.timer_remaining / 2)
+    end
+end
+
 function UI.render_settings()
     if imgui.tree_node("Attack Info") then
         local changed = false
@@ -428,14 +464,16 @@ function UI.render_settings()
             imgui.same_line()
             changed, Config.settings.toggle_minimal_view_p2 = imgui.checkbox("P2##minimal_p2", Config.settings.toggle_minimal_view_p2)
             if changed then UI.mark_for_save() end
-            -- imgui.text("Show Empty")
-            -- imgui.same_line()
-            -- changed, Config.settings.toggle_show_empty_p1 = imgui.checkbox("P1##show_empty_p1", Config.settings.toggle_show_empty_p1)
-            -- if changed then UI.mark_for_save() end
-            -- imgui.same_line()
-            -- changed, Config.settings.toggle_show_empty_p2 = imgui.checkbox("P2##show_empty_p2", Config.settings.toggle_show_empty_p2)
-            -- if changed then UI.mark_for_save() end
-            changed = imgui.button("Clear Info")
+            imgui.text("Clear After:")
+            imgui.same_line()
+            imgui.push_item_width(30)
+            changed, Config.settings.combo_timer_duration = imgui.drag_int("##combo_timer_duration", Config.settings.combo_timer_duration, 1, 0, 120)
+            imgui.pop_item_width()
+            imgui.same_line()
+            imgui.text("Seconds")
+            if changed then UI.mark_for_save() end
+            imgui.same_line()
+            changed = imgui.button("Clear Now")
             if changed then ComboData.default_state() end
         end
         imgui.tree_pop()
@@ -456,6 +494,7 @@ re.on_frame(function()
     local sPlayer, cPlayer, cTeam = GameObjects.get_objects()
     if not sPlayer then return end
 
+    UI.update_combo_timers()
     if sPlayer.prev_no_push_bit ~= 0 then
         local p1, p2 = GameObjects.map_player_data(cPlayer, cTeam)
         ComboData.update_state(p1, p2)
