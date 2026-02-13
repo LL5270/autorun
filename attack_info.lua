@@ -15,6 +15,7 @@ local UI = {}
 -- Config
 -------------------------
 
+Config.initialized = false
 Config.settings = {
     toggle_all = true,
     toggle_p1 = true,
@@ -29,13 +30,18 @@ function Config.load()
     local loaded_settings = json.load_file(CONFIG_PATH)
     if loaded_settings then
         for k, v in pairs(loaded_settings) do Config.settings[k] = v end
-    else
-        Config.save()
-    end
+    else Config.save() end
 end
 
-function Config.save()
-    json.dump_file(CONFIG_PATH, Config.settings)
+function Config.save() json.dump_file(CONFIG_PATH, Config.settings) end
+
+function Config.init()
+    if not Config.initialized then
+        Utils.setup_hook("app.training.TrainingManager", "BattleStart", nil, function() ComboData.default_state() end)
+        ComboData.default_state()
+    	Config.load()
+	    Config.initialized = true
+    end
 end
 
 -------------------------
@@ -62,9 +68,7 @@ function Utils.setup_hook(type_name, method_name, pre_func, post_func)
     local type_def = sdk.find_type_definition(type_name)
     if type_def then
         local method = type_def:get_method(method_name)
-        if method then
-            sdk.hook(method, pre_func, post_func)
-        end
+        if method then sdk.hook(method, pre_func, post_func) end
     end
 end
 
@@ -122,10 +126,7 @@ end
 
 function GameObjects.is_paused()
 	local pause_type_bit = GameObjects.PauseManager:get_field("_CurrentPauseTypeBit")
-	if pause_type_bit == 64 or pause_type_bit == 2112 then
-		return false
-	end
-	return true
+	return not (pause_type_bit == 64 or pause_type_bit == 2112)
 end
 
 -------------------------
@@ -198,9 +199,7 @@ end
 function UI.save_handler()
     if UI.save_pending then
         UI.save_timer = UI.save_timer - (1.0 / 60.0)
-        if UI.save_timer <= 0 then
-            Config.save()
-        end
+        if UI.save_timer <= 0 then Config.save() end
     end
 end
 
@@ -447,13 +446,7 @@ end
 -- Main
 -------------------------
 
-Utils.setup_hook("app.training.TrainingManager", "BattleStart", nil, function()
-    ComboData.default_state()
-end)
-
-ComboData.default_state()
-
-Config.load()
+Config.init()
 
 re.on_draw_ui(function()
     UI.render_settings()
