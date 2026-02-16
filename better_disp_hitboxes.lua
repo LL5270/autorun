@@ -232,10 +232,6 @@ local function duplicate_preset(name)
 	return true
 end
 
-local function handle_rename_mode_input()
-	this.changed, this.rename_temp_name = imgui.input_text("##preset_name", this.rename_temp_name)
-end
-
 local function handle_create_new_mode_input()
 	this.changed, this.new_preset_name = imgui.input_text("##preset_name", this.new_preset_name)
 end
@@ -364,10 +360,6 @@ local function preset_has_unsaved_changes(preset_name)
 		for opacity_name, _ in pairs(current_opacity) do
 			if preset_opacity[opacity_name] == nil then return true end end
 	end; return false
-end
-
-local function preset_mode_handler()
-	if this.create_new_mode then handle_create_new_mode_buttons() end
 end
 
 local function copy_player(player)
@@ -849,21 +841,16 @@ local function build_toggle()
 end
 
 local function build_preset_main_row()
-	if this.create_new_mode then imgui.text("New:")
-	else imgui.text("Current:") end
+	if not this.create_new_mode then return end
+	imgui.text("New:")
 	imgui.same_line(); imgui.push_item_width(100)
-	if this.create_new_mode then handle_create_new_mode_input()
-	else
-		local current_text = this.current_preset_name or ""
-		imgui.text(current_text)
-	end
+	handle_create_new_mode_input()
 	imgui.pop_item_width()
 	imgui.same_line()
-	preset_mode_handler()
+	handle_create_new_mode_buttons()
 end
 
-local function build_preset_row(preset_name)
-	imgui.table_next_row()
+local function build_preset_name_column(preset_name)
 	imgui.table_set_column_index(0)
 	if this.rename_mode == preset_name then
 		this.changed, this.rename_temp_name = imgui.input_text("##rename_" .. preset_name, this.rename_temp_name, 32)
@@ -876,7 +863,9 @@ local function build_preset_row(preset_name)
 			imgui.text(preset_name)
 		end
 	end
-	
+end
+
+local function build_preset_action_column(preset_name)
 	imgui.table_set_column_index(1)
 	if this.rename_mode == preset_name then
 		if imgui.button("Confirm##conf_" .. preset_name, {0, 0}) then save_rename(preset_name) end
@@ -892,19 +881,25 @@ local function build_preset_row(preset_name)
 	elseif preset_name ~= this.current_preset_name then
 		if imgui.button("Load##load_" .. preset_name, {0, 0}) then load_preset_and_reset(preset_name) end
 	end
-	
+end
+
+local function build_preset_rename_column(preset_name)
 	imgui.table_set_column_index(2)
 	if this.rename_mode == preset_name then
 		if imgui.button("Cancel##canc_" .. preset_name, {0, 0}) then cancel_rename_mode() end
 	else
 		if imgui.button("Rename##ren_" .. preset_name, {0, 0}) then start_rename_mode(preset_name) end
 	end
-	
+end
+
+local function build_preset_duplicate_column(preset_name)
 	imgui.table_set_column_index(3)
 	if this.rename_mode ~= preset_name then
 		if imgui.button("Duplicate##dup_" .. preset_name, {0, 0}) then duplicate_preset(preset_name) end
 	end
-	
+end
+
+local function build_preset_delete_column(preset_name)
 	imgui.table_set_column_index(4)
 	if this.rename_mode ~= preset_name then
 		if this.delete_confirm_name == preset_name then
@@ -918,6 +913,15 @@ local function build_preset_row(preset_name)
 			if imgui.button("Delete##del_" .. preset_name, {0, 0}) then start_delete_confirm(preset_name) end
 		end
 	end
+end
+
+local function build_preset_row(preset_name)
+	imgui.table_next_row()
+	build_preset_name_column(preset_name)
+	build_preset_action_column(preset_name)
+	build_preset_rename_column(preset_name)
+	build_preset_duplicate_column(preset_name)
+	build_preset_delete_column(preset_name)
 end
 
 local function build_preset_rows()
