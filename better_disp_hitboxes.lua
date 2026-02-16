@@ -806,6 +806,7 @@ local function build_toggle_all_row()
 end
 
 local function build_toggle_rows()
+	imgui.indent(6)
 	build_toggle_row("Hitbox", "hitboxes", "hitbox")
 	build_toggle_row("Hitbox Outline", "hitboxes_outline", "hitbox_outline")
 	build_toggle_row("Hurtbox", "hurtboxes", "hurtbox")
@@ -829,7 +830,6 @@ end
 
 local function build_toggle()
 	imgui.set_next_item_open(true, 1 << 3)
-	if not imgui.tree_node("Toggle") then return false end
 	if not imgui.begin_table("ToggleTable", 3) then return false end
 
 	setup_menu_columns({150, 125, 125}, nil, {"", "P1", "P2"})
@@ -840,7 +840,6 @@ local function build_toggle()
 		build_toggle_rows()
 	end
 	imgui.end_table()
-	imgui.tree_pop()
 end
 
 local function build_preset_main_row()
