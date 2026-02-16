@@ -694,7 +694,8 @@ local function setup_menu_columns(widths, flags, names)
 end
 
 local function build_toggle_header(player_int, func)
-	imgui.table_set_column_index(player_int)
+	if player_int == 2 then col_index = 3 else col_index = 1 end
+	imgui.table_set_column_index(col_index)
 	if not player_int then return false end
 	local imgui_text, header_name = string.format("P%.0f", player_int), string.format("##p%.0f_HideAllHeader", player_int)
 	imgui.text(imgui_text); imgui.same_line()
@@ -724,7 +725,7 @@ end
 local function build_toggle_columns(label, config_suffix, opacity_suffix)
 	imgui.table_set_column_index(0); imgui.text(label)
 	build_toggle_column(1, this.config.p1.toggle.toggle_show, this.config.p1.toggle, this.config.p1.opacity, config_suffix, opacity_suffix)
-	build_toggle_column(2, this.config.p2.toggle.toggle_show, this.config.p2.toggle, this.config.p2.opacity, config_suffix, opacity_suffix)
+	build_toggle_column(3, this.config.p2.toggle.toggle_show, this.config.p2.toggle, this.config.p2.opacity, config_suffix, opacity_suffix)
 end
 
 local function build_toggle_row(label, config_suffix, opacity_suffix)
@@ -766,7 +767,7 @@ local function build_toggle_all_row()
 			mark_for_save(); end; imgui.pop_item_width()
 		end
 	end
-	imgui.table_set_column_index(2)
+	imgui.table_set_column_index(3)
 	if this.config.p2.toggle.toggle_show then
 		local all_checked, any_checked = false, false
 		for toggle_name, toggle_value in pairs(this.config.p2.toggle) do
@@ -830,9 +831,9 @@ end
 
 local function build_toggle()
 	imgui.set_next_item_open(true, 1 << 3)
-	if not imgui.begin_table("ToggleTable", 3) then return false end
+	if not imgui.begin_table("ToggleTable", 4) then return false end
 
-	setup_menu_columns({150, 125, 125}, nil, {"", "P1", "P2"})
+	setup_menu_columns({160, 100, 0, 125}, nil, {"", "P1", "P2"})
 	imgui.table_next_row()
 	build_toggle_headers()
 	
@@ -943,6 +944,7 @@ end
 
 local function build_presets()
 	imgui.set_next_item_open(true, 1 << 3)
+	imgui.unindent(10)
 	if not imgui.tree_node("Presets") then return end
 	if this.create_new_mode then
 		build_preset_main_row()
@@ -993,6 +995,7 @@ end
 local function build_options()
 	imgui.set_next_item_open(true, 1 << 3)
     if not imgui.tree_node("Options") then return false end
+	imgui.unindent(15)
 	build_reset_options(); build_copy_options()
 	imgui.tree_pop()
 end
