@@ -26,6 +26,8 @@ end
 
 local function bitand(a, b) return (a % (b + b) >= b) and b or 0 end
 
+local function mark_for_save() this.save_pending = true; this.save_timer = SAVE_DELAY; end
+
 local function setup_hotkeys()
 	if not this.key_ready and not reframework:is_key_down(KEY_1) and not reframework:is_key_down(KEY_2) and not reframework:is_key_down(KEY_F1) then this.key_ready = true end
 	if this.key_ready and reframework:is_key_down(KEY_F1) then
@@ -72,7 +74,7 @@ local function create_default_config()
 	}
 end
 
-local function mark_for_save() this.save_pending = true; this.save_timer = SAVE_DELAY; end
+
 
 local function validate_config(cfg)
 	if not cfg.options then cfg.options = { display_menu = true } end
@@ -119,7 +121,8 @@ local function load_config()
 	else
 		this.config = create_default_config()
 		this.presets, this.current_preset_name, this.preset_names = {}, "", {}
-	mark_for_save(); end
+		mark_for_save()
+	end
 end
 
 local function save_handler()
